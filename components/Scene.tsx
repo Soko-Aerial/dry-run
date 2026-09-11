@@ -132,6 +132,8 @@ function Aircraft({
   )
 }
 
+type ZoomCmd = 'in' | 'out' | 'fit' | 'stop'
+
 function Rig({
   center,
   home,
@@ -145,12 +147,13 @@ function Rig({
   focus: THREE.Vector3 | null
   chase: boolean
   flying: React.RefObject<boolean>
-  cmd: React.RefObject<((what: 'in' | 'out' | 'fit') => void) | null>
+  cmd: React.RefObject<((what: ZoomCmd) => void) | null>
 }) {
   const { camera, controls } = useThree() as unknown as {
     camera: THREE.Camera
     controls: { target: THREE.Vector3; update: () => void } | null
   }
+  const goal = useRef<{ pos: THREE.Vector3; target: THREE.Vector3 } | null>(null)
 
   // Frame the mission once per mission, not on every render — otherwise a pan
   // is undone by the next playback tick.
@@ -162,22 +165,23 @@ function Rig({
   }, [controls, camera, center, home])
 
   // Buttons dolly along the view axis — the same thing the wheel does, for
-  // trackpads and touch where the wheel is awkward.
+  // trackpads and touch where the wheel is awkward. A step sets a goal and the
+  // frame loop glides to it, so repeated clicks compound into one movement.
   cmd.current = (what) => {
     if (!controls) return
     flying.current = false
-    if (what === 'fit') {
-      camera.position.copy(home)
-      controls.target.copy(center)
-    } else {
-      const t = controls.target
-      const f = what === 'in' ? 0.75 : 1 / 0.75
-      // scale the existing view vector — read it before touching position
-      const offset = camera.position.clone().sub(t)
-      const d = Math.min(120000, Math.max(30, offset.length() * f))
-      camera.position.copy(t).addScaledVector(offset.normalize(), d)
+    if (what === 'stop') {
+      goal.current = null
+      return
     }
-    controls.update()
+    if (what === 'fit') {
+      goal.current = { pos: home.clone(), target: center.clone() }
+      return
+    }
+    const t = (goal.current?.target ?? controls.target).clone()
+    const offset = (goal.current?.pos ?? camera.position).clone().sub(t)
+    const d = Math.min(120000, Math.max(30, offset.length() * (what === 'in' ? 0.75 : 1 / 0.75)))
+    goal.current = { pos: t.clone().addScaledVector(offset.normalize(), d), target: t }
   }
 
   // A selection flies the camera to it, then hands control back. It used to
@@ -187,7 +191,17 @@ function Rig({
   }, [focus, flying])
 
   useFrame(() => {
-    if (chase || !focus || !controls || !flying.current) return
+    if (chase) {
+      goal.current = null
+      return
+    }
+    if (goal.current && controls) {
+      camera.position.lerp(goal.current.pos, 0.18)
+      controls.target.lerp(goal.current.target, 0.18)
+      controls.update()
+      if (camera.position.distanceTo(goal.current.pos) < 1) goal.current = null
+    }
+    if (!focus || !controls || !flying.current) return
     const want = focus.clone().add(new THREE.Vector3(260, 190, 260))
     camera.position.lerp(want, 0.08)
     controls.target.lerp(focus, 0.08)
@@ -273,7 +287,7 @@ export default function Scene({
 
   const selectedWp = selection?.kind === 'waypoint' ? selection.index : -1
   const flying = useRef(false)
-  const cmd = useRef<((what: 'in' | 'out' | 'fit') => void) | null>(null)
+  const cmd = useRef<((what: ZoomCmd) => void) | null>(null)
 
   // the selected leg, drawn over the path so it reads in 3D as well as the tree
   const legPath = useMemo(() => {
@@ -346,6 +360,7 @@ export default function Scene({
         makeDefault
         onStart={() => {
           flying.current = false
+          cmd.current?.('stop')
         }}
       />
     </Canvas>

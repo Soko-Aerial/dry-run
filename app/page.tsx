@@ -149,13 +149,12 @@ export default function Page() {
                 <PanelTitle
                   action={
                     <Button
-                      size="icon"
-                      variant="ghost"
+                      size="icon-xs"
+                      variant="secondary"
                       aria-label="Open mission"
-                      className="size-5"
                       onClick={() => fileRef.current?.click()}
                     >
-                      <Upload className="size-3.5" />
+                      <Upload />
                     </Button>
                   }
                 >
@@ -218,7 +217,7 @@ export default function Page() {
                         className="h-7 gap-1.5 px-2.5 text-xs"
                         onClick={() => fileRef.current?.click()}
                       >
-                        <Upload className="size-3.5" />
+                        <Upload />
                         Open mission
                       </Button>
                     )}
