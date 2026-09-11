@@ -1,36 +1,50 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# dry run
 
-## Getting Started
+Pre-flight site survey for drone missions. Load a mission file, fly it against
+real terrain, and see whether the aircraft clears the ground everywhere along
+the path — before anyone goes to the field.
 
-First, run the development server:
+![Alpine mission, NO-GO](docs/ui-dark.png)
+
+## What it does
+
+- Reads **ArduPilot `.waypoints`** and **QGC `.plan`** missions.
+- Converts every altitude to AMSL (absolute, relative and terrain frames) and
+  samples Mapbox terrain tiles under the route.
+- Flies the mission with a configurable vehicle model — fixed-wing corner arcs
+  from turn radius, or a multirotor that turns on the spot — and checks
+  clearance at every sample.
+- Verdict is **GO / NO-GO** against a configurable minimum clearance (30 m),
+  with the offending legs listed.
+
+## The view
+
+Selecting anything — in the tree, in 3D, or on the profile — highlights it
+everywhere. `Esc` clears the selection.
+
+![Survey grid with a leg selected](docs/ui-selected.png)
+
+The bottom panel is the clearance profile: terrain silhouette, the flight line
+above it, the minimum-clearance band, and any breach in red. Scrub it to move
+the aircraft.
+
+Chase camera rides behind the aircraft; the drop-line under it is green while
+clear, red when not.
+
+![Chase camera](docs/ui-chase.png)
+
+Light theme is the same data, same colours.
+
+![Light theme](docs/ui-light.png)
+
+## Running it
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
+echo 'MAPBOX_TOKEN=pk.your_token' > .env.local   # without it, terrain is synthetic and the verdict is void
 pnpm dev
-# or
-bun dev
+pnpm test       # trajectory geometry, mission parsing, PNG decode
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Sample missions are in `samples/`. `DESIGN.md` has the decisions and the flight
+model.

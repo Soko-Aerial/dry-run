@@ -7,8 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx lib/trajectory.test.ts && tsx lib/mission.test.ts && tsx lib/png.test.mts",
-    "smoke": "tsx smoke.mts"
+    "test": "tsx lib/trajectory.test.ts && tsx lib/mission.test.ts && tsx lib/png.test.mts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -34,7 +33,6 @@
     "@types/three": "^0.185.4",
     "eslint": "^9",
     "eslint-config-next": "16.3.4",
-    "playwright-core": "^1.63.0",
     "tailwindcss": "^4",
     "tsx": "^4.23.13",
     "typescript": "^5"

@@ -16,6 +16,7 @@ import { Inspector } from '@/components/inspector'
 import { Timeline } from '@/components/timeline'
 import { PROFILES, type VehicleProfile } from '@/lib/trajectory'
 import { runSurvey, type Selection, type Survey } from '@/lib/survey'
+import { Kbd } from '@/components/ui/kbd'
 import { cn } from '@/lib/utils'
 
 const Scene = dynamic(() => import('@/components/Scene'), { ssr: false })
@@ -61,6 +62,14 @@ export default function Page() {
   useEffect(() => {
     if (playing && survey && head >= survey.traj.length - 1) setPlaying(false)
   }, [playing, head, survey])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelection(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   const run = useCallback(
     // `fresh` = a newly opened file. A re-run of the same mission keeps the
@@ -245,7 +254,17 @@ export default function Page() {
             <ResizableHandle />
             <ResizablePanel defaultSize="24" minSize="14" maxSize="40">
               <div className="flex h-full flex-col">
-                <PanelTitle>Selection</PanelTitle>
+                <PanelTitle
+                  action={
+                    selection && (
+                      <span className="flex items-center gap-1 text-[10px] normal-case">
+                        <Kbd>Esc</Kbd> to clear
+                      </span>
+                    )
+                  }
+                >
+                  Selection
+                </PanelTitle>
                 <div className="min-h-0 flex-1">
                   <Inspector
                     kind={kind}
