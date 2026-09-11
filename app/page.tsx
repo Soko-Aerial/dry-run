@@ -29,7 +29,7 @@ function PanelTitle({
   action?: React.ReactNode
 }) {
   return (
-    <div className="border-border/60 text-muted-foreground flex h-7 shrink-0 items-center gap-2 border-b px-2 text-[11px] font-medium tracking-wide uppercase">
+    <div className="border-border/60 flex h-7 shrink-0 items-center gap-2 border-b px-2 text-[11px] font-medium">
       {children}
       {action && <span className="ml-auto">{action}</span>}
     </div>
@@ -257,7 +257,7 @@ export default function Page() {
                 <PanelTitle
                   action={
                     selection && (
-                      <span className="flex items-center gap-1 text-[10px] normal-case">
+                      <span className="text-muted-foreground flex items-center gap-1 text-[10px] font-normal">
                         <Kbd>Esc</Kbd> to clear
                       </span>
                     )

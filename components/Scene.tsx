@@ -1,9 +1,15 @@
 'use client'
 
-import { useEffect, useMemo, useRef } from 'react'
+import { Fragment, useEffect, useMemo, useRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls, Line } from '@react-three/drei'
 import { useTheme } from 'next-themes'
+import { Maximize2, ZoomIn, ZoomOut } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import {
+  ButtonGroup,
+  ButtonGroupSeparator,
+} from '@/components/ui/button-group'
 import * as THREE from 'three'
 import { gridToMesh } from '@/lib/terrain'
 import { enuFactors } from '@/lib/mission'
@@ -132,12 +138,14 @@ function Rig({
   focus,
   chase,
   flying,
+  cmd,
 }: {
   center: THREE.Vector3
   home: THREE.Vector3
   focus: THREE.Vector3 | null
   chase: boolean
   flying: React.RefObject<boolean>
+  cmd: React.RefObject<((what: 'in' | 'out' | 'fit') => void) | null>
 }) {
   const { camera, controls } = useThree() as unknown as {
     camera: THREE.Camera
@@ -152,6 +160,25 @@ function Rig({
     controls.target.copy(center)
     controls.update()
   }, [controls, camera, center, home])
+
+  // Buttons dolly along the view axis — the same thing the wheel does, for
+  // trackpads and touch where the wheel is awkward.
+  cmd.current = (what) => {
+    if (!controls) return
+    flying.current = false
+    if (what === 'fit') {
+      camera.position.copy(home)
+      controls.target.copy(center)
+    } else {
+      const t = controls.target
+      const f = what === 'in' ? 0.75 : 1 / 0.75
+      // scale the existing view vector — read it before touching position
+      const offset = camera.position.clone().sub(t)
+      const d = Math.min(120000, Math.max(30, offset.length() * f))
+      camera.position.copy(t).addScaledVector(offset.normalize(), d)
+    }
+    controls.update()
+  }
 
   // A selection flies the camera to it, then hands control back. It used to
   // lerp forever, so dragging snapped back the moment you let go.
@@ -246,6 +273,7 @@ export default function Scene({
 
   const selectedWp = selection?.kind === 'waypoint' ? selection.index : -1
   const flying = useRef(false)
+  const cmd = useRef<((what: 'in' | 'out' | 'fit') => void) | null>(null)
 
   // the selected leg, drawn over the path so it reads in 3D as well as the tree
   const legPath = useMemo(() => {
@@ -257,6 +285,7 @@ export default function Scene({
   }, [selection, survey])
 
   return (
+    <>
     <Canvas
       // ponytail: AA off and DPR capped at 1.5. On a 4K display the default
       // devicePixelRatio alone quadruples the fragment cost for a terrain mesh
@@ -270,7 +299,14 @@ export default function Scene({
       <Terrain survey={survey} />
       <Line points={path as [number, number, number][]} color={colors.flight} lineWidth={2} />
       {legPath && <Line points={legPath} color={colors.aircraft} lineWidth={5} />}
-      <Rig center={center} home={homePos} focus={focus} chase={chase} flying={flying} />
+      <Rig
+        center={center}
+        home={homePos}
+        focus={focus}
+        chase={chase}
+        flying={flying}
+        cmd={cmd}
+      />
       <Aircraft
         survey={survey}
         home={homePos}
@@ -313,5 +349,32 @@ export default function Scene({
         }}
       />
     </Canvas>
+    <ButtonGroup
+      orientation="vertical"
+      className="bg-card/80 border-border/60 absolute right-2 bottom-2 rounded-md border p-0.5 backdrop-blur"
+    >
+      {(
+        [
+          [ZoomIn, 'in', 'Zoom in'],
+          [ZoomOut, 'out', 'Zoom out'],
+          [Maximize2, 'fit', 'Frame mission'],
+        ] as const
+      ).map(([Icon, what, label], i) => (
+        <Fragment key={what}>
+          {i > 0 && <ButtonGroupSeparator />}
+          <Button
+            size="icon"
+            variant="ghost"
+            aria-label={label}
+            className="size-7"
+            disabled={chase}
+            onClick={() => cmd.current?.(what)}
+          >
+            <Icon className="size-3.5" />
+          </Button>
+        </Fragment>
+      ))}
+    </ButtonGroup>
+    </>
   )
 }

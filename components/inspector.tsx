@@ -13,7 +13,7 @@ const m = (v: number) => `${v.toFixed(0)} m`
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="border-border/60 border-b py-2">
-      <div className="text-muted-foreground px-3 pb-1 text-[11px] font-medium tracking-wide uppercase">
+      <div className="px-3 pb-1 text-[11px] font-medium">
         {title}
       </div>
       <div className="space-y-0.5 px-3">{children}</div>
