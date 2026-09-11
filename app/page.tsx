@@ -206,7 +206,14 @@ export default function Page() {
             />
             <div className="absolute inset-x-0 bottom-0 flex items-center gap-3 bg-neutral-900/90 p-3 text-xs backdrop-blur">
               <button
-                onClick={() => setPlaying((p) => !p)}
+                onClick={() => {
+                  // restart if parked at the end
+                  if (headRef.current >= survey.traj.length - 1) {
+                    headRef.current = 0
+                    setHead(0)
+                  }
+                  setPlaying((p) => !p)
+                }}
                 className="rounded bg-sky-600 px-3 py-1.5"
               >
                 {playing ? 'Pause' : 'Play'}

@@ -175,10 +175,12 @@ export function gridToMesh(
       positions[i + 1] = h
       positions[i + 2] = -(lat - origin.lat) * fLat
 
-      const t = (h - min) / span
-      colors[i] = 0.25 + t * 0.55
-      colors[i + 1] = 0.42 + t * 0.25
-      colors[i + 2] = 0.24 + t * 0.45
+      // green valley -> brown slope -> grey rock. Keep it dark: the shading
+      // carries the relief, the colour only has to say "how high".
+      const t = Math.max(0, Math.min(1, (h - min) / span))
+      colors[i] = 0.16 + t * 0.42
+      colors[i + 1] = 0.26 + t * 0.28
+      colors[i + 2] = 0.12 + t * 0.36
     }
   }
 
