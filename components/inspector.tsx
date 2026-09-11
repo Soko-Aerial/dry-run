@@ -73,6 +73,8 @@ function NumberField({
 }
 
 export function Inspector({
+  kind,
+  setKind,
   survey,
   selection,
   profile,
@@ -82,6 +84,8 @@ export function Inspector({
   onRerun,
   busy,
 }: {
+  kind: 'fixedwing' | 'multirotor'
+  setKind: (k: 'fixedwing' | 'multirotor') => void
   survey: Survey | null
   selection: Selection | null
   profile: VehicleProfile
@@ -96,6 +100,19 @@ export function Inspector({
   const vehicle = (
     <>
       <Section title="Vehicle">
+        <div className="flex gap-1 pb-1.5">
+          {(['fixedwing', 'multirotor'] as const).map((k) => (
+            <Button
+              key={k}
+              size="sm"
+              variant={kind === k ? 'secondary' : 'ghost'}
+              className="h-6 flex-1 px-2 text-xs"
+              onClick={() => setKind(k)}
+            >
+              {k === 'fixedwing' ? 'Fixed-wing' : 'Multirotor'}
+            </Button>
+          ))}
+        </div>
         {(
           [
             ['cruiseMs', 'Cruise speed', 'm/s'],

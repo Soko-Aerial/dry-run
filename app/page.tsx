@@ -20,10 +20,17 @@ import { cn } from '@/lib/utils'
 
 const Scene = dynamic(() => import('@/components/Scene'), { ssr: false })
 
-function PanelTitle({ children }: { children: React.ReactNode }) {
+function PanelTitle({
+  children,
+  action,
+}: {
+  children: React.ReactNode
+  action?: React.ReactNode
+}) {
   return (
-    <div className="border-border/60 text-muted-foreground flex h-7 shrink-0 items-center border-b px-2 text-[11px] font-medium tracking-wide uppercase">
+    <div className="border-border/60 text-muted-foreground flex h-7 shrink-0 items-center gap-2 border-b px-2 text-[11px] font-medium tracking-wide uppercase">
       {children}
+      {action && <span className="ml-auto">{action}</span>}
     </div>
   )
 }
@@ -80,7 +87,6 @@ export default function Page() {
     <div className="bg-background flex h-full flex-col">
       {/* top bar */}
       <header className="border-border/60 flex h-9 shrink-0 items-center gap-2 border-b px-2">
-        <span className="px-1 text-xs font-medium">dry run</span>
         <input
           ref={fileRef}
           type="file"
@@ -93,36 +99,6 @@ export default function Page() {
             run(await f.text())
           }}
         />
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-6 gap-1.5 px-2 text-xs"
-          onClick={() => fileRef.current?.click()}
-        >
-          <Upload className="size-3" />
-          Open mission
-        </Button>
-        {fileName && <span className="text-muted-foreground text-xs">{fileName}</span>}
-
-        <div className="bg-border mx-1 h-4 w-px" />
-        <div className="flex gap-1">
-          {(['fixedwing', 'multirotor'] as const).map((k) => (
-            <Button
-              key={k}
-              size="sm"
-              variant={kind === k ? 'secondary' : 'ghost'}
-              className="h-6 px-2 text-xs"
-              onClick={() => {
-                setKind(k)
-                setProfile(PROFILES[k])
-                if (textRef.current) run(textRef.current, PROFILES[k])
-              }}
-            >
-              {k === 'fixedwing' ? 'Fixed-wing' : 'Multirotor'}
-            </Button>
-          ))}
-        </div>
-
         {error && <span className="text-destructive truncate text-xs">{error}</span>}
 
         <div className="ml-auto flex items-center gap-1.5">
@@ -158,7 +134,21 @@ export default function Page() {
           <>
             <ResizablePanel defaultSize="16" minSize="10" maxSize="30">
               <div className="flex h-full flex-col">
-                <PanelTitle>Mission</PanelTitle>
+                <PanelTitle
+                  action={
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      aria-label="Open mission"
+                      className="size-5"
+                      onClick={() => fileRef.current?.click()}
+                    >
+                      <Upload className="size-3.5" />
+                    </Button>
+                  }
+                >
+                  Mission
+                </PanelTitle>
                 <div className="min-h-0 flex-1">
                   <MissionTree
                     survey={survey}
@@ -206,8 +196,20 @@ export default function Page() {
                     </div>
                   </>
                 ) : (
-                  <div className="text-muted-foreground grid h-full place-items-center text-xs">
-                    {busy ? 'Sampling terrain…' : 'Open a mission file to begin'}
+                  <div className="grid h-full place-items-center">
+                    {busy ? (
+                      <span className="text-muted-foreground text-xs">Sampling terrain…</span>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 gap-1.5 px-2.5 text-xs"
+                        onClick={() => fileRef.current?.click()}
+                      >
+                        <Upload className="size-3.5" />
+                        Open mission
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>
@@ -242,6 +244,12 @@ export default function Page() {
                 <PanelTitle>Selection</PanelTitle>
                 <div className="min-h-0 flex-1">
                   <Inspector
+                    kind={kind}
+                    setKind={(k) => {
+                      setKind(k)
+                      setProfile(PROFILES[k])
+                      if (textRef.current) run(textRef.current, PROFILES[k])
+                    }}
                     survey={survey}
                     selection={selection}
                     profile={profile}
