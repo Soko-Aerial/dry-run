@@ -155,17 +155,21 @@ function Rig({
   center,
   home,
   focus,
+  focusKey,
   chase,
   flying,
   quiet,
   cmd,
+  missionId,
 }: {
   center: THREE.Vector3
   home: THREE.Vector3
   focus: THREE.Vector3 | null
+  focusKey: string | null
   chase: boolean
   flying: React.RefObject<boolean>
   quiet: React.RefObject<boolean>
+  missionId: number
   cmd: React.RefObject<((what: ZoomCmd) => void) | null>
 }) {
   const { camera, controls } = useThree() as unknown as {
@@ -176,14 +180,17 @@ function Rig({
   }
   const goal = useRef<{ pos: THREE.Vector3; target: THREE.Vector3 } | null>(null)
 
-  // Frame the mission once per mission, not on every render — otherwise a pan
-  // is undone by the next playback tick.
+  // Frame the mission when a mission is opened, and at no other time. Keying
+  // this off the survey instead threw the view away on every re-run — a
+  // vehicle switch or a threshold change cost you the shot you had lined up.
+  const framing = useRef({ center, home })
+  framing.current = { center, home }
   useEffect(() => {
     if (!controls) return
-    camera.position.copy(home)
-    controls.target.copy(center)
+    camera.position.copy(framing.current.home)
+    controls.target.copy(framing.current.center)
     controls.update()
-  }, [controls, camera, center, home])
+  }, [controls, camera, missionId])
 
   // Buttons dolly along the view axis — the same thing the wheel does, for
   // trackpads and touch where the wheel is awkward. A step sets a goal and the
@@ -226,14 +233,16 @@ function Rig({
   // A selection flies the camera to it, then hands control back. It used to
   // lerp forever, so dragging snapped back the moment you let go. Clicking the
   // thing in 3D selects without moving the camera — you are already looking.
+  // Keyed on what is selected, not on the focus point: a re-run rebuilds the
+  // trajectory, and flying to the "new" point every time stole the camera.
   useEffect(() => {
     if (quiet.current) {
       quiet.current = false
       flying.current = false
       return
     }
-    flying.current = !!focus
-  }, [focus, flying, quiet])
+    flying.current = !!focusKey
+  }, [focusKey, flying, quiet])
 
   useFrame(() => {
     if (chase) {
@@ -263,6 +272,7 @@ export default function Scene({
   playing,
   speed,
   chase,
+  missionId,
   modelUrl,
   modelYawDeg,
   headRef,
@@ -275,6 +285,7 @@ export default function Scene({
   playing: boolean
   speed: number
   chase: boolean
+  missionId: number
   modelUrl: string | null
   modelYawDeg: number
   headRef: React.RefObject<number>
@@ -334,6 +345,10 @@ export default function Scene({
     return null
   }, [selection, marks, survey])
 
+  const focusKey =
+    selection && (selection.kind === 'waypoint' || selection.kind === 'leg')
+      ? `${selection.kind}:${selection.index}`
+      : null
   const selectedWp = selection?.kind === 'waypoint' ? selection.index : -1
   const flying = useRef(false)
   const quiet = useRef(false) // selection came from a click in the scene
@@ -386,10 +401,12 @@ export default function Scene({
         center={center}
         home={homePos}
         focus={focus}
+        focusKey={focusKey}
         chase={chase}
         flying={flying}
         quiet={quiet}
         cmd={cmd}
+        missionId={missionId}
       />
       <Aircraft
         survey={survey}

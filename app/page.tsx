@@ -46,6 +46,7 @@ export default function Page() {
   // glTF assets disagree on the forward axis; -90° suits a nose-along-+X model,
   // which is the common case. The knob in the inspector covers the rest.
   const [modelYaw, setModelYaw] = useState(-90)
+  const [missionId, setMissionId] = useState(0)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selection, setSelection] = useState<Selection | null>({ kind: 'mission' })
@@ -113,6 +114,7 @@ export default function Page() {
             const f = e.target.files?.[0]
             if (!f) return
             setFileName(f.name)
+            setMissionId((n) => n + 1)
             run(await f.text(), profile, threshold, true)
           }}
         />
@@ -201,6 +203,7 @@ export default function Page() {
                 {survey ? (
                   <>
                     <Scene
+                      missionId={missionId}
                       modelUrl={model?.url ?? null}
                       modelYawDeg={modelYaw}
                       survey={survey}
