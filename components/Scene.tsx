@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls, Line } from '@react-three/drei'
 import { useTheme } from 'next-themes'
@@ -43,7 +43,6 @@ function Aircraft({
   speed,
   chase,
   home,
-  focus,
   colors,
   headRef,
   onTick,
@@ -54,7 +53,6 @@ function Aircraft({
   speed: number
   chase: boolean
   home: THREE.Vector3
-  focus: THREE.Vector3 | null
   colors: (typeof PALETTE)['dark']
   headRef: React.RefObject<number>
   onTick: (i: number) => void
@@ -101,12 +99,6 @@ function Aircraft({
     } else if (chaseEngaged.current) {
       camera.position.copy(home)
       chaseEngaged.current = false
-    } else if (focus) {
-      // selecting in the tree pulls the camera toward the thing selected
-      camera.position.lerp(
-        focus.clone().add(new THREE.Vector3(260, 190, 260)),
-        0.06,
-      )
     }
 
     if (performance.now() - lastTick.current > 100) {
@@ -132,6 +124,51 @@ function Aircraft({
       </line>
     </>
   )
+}
+
+function Rig({
+  center,
+  home,
+  focus,
+  chase,
+  flying,
+}: {
+  center: THREE.Vector3
+  home: THREE.Vector3
+  focus: THREE.Vector3 | null
+  chase: boolean
+  flying: React.RefObject<boolean>
+}) {
+  const { camera, controls } = useThree() as unknown as {
+    camera: THREE.Camera
+    controls: { target: THREE.Vector3; update: () => void } | null
+  }
+
+  // Frame the mission once per mission, not on every render — otherwise a pan
+  // is undone by the next playback tick.
+  useEffect(() => {
+    if (!controls) return
+    camera.position.copy(home)
+    controls.target.copy(center)
+    controls.update()
+  }, [controls, camera, center, home])
+
+  // A selection flies the camera to it, then hands control back. It used to
+  // lerp forever, so dragging snapped back the moment you let go.
+  useEffect(() => {
+    flying.current = !!focus
+  }, [focus, flying])
+
+  useFrame(() => {
+    if (chase || !focus || !controls || !flying.current) return
+    const want = focus.clone().add(new THREE.Vector3(260, 190, 260))
+    camera.position.lerp(want, 0.08)
+    controls.target.lerp(focus, 0.08)
+    controls.update()
+    if (camera.position.distanceTo(want) < 5) flying.current = false
+  })
+
+  return null
 }
 
 export default function Scene({
@@ -208,6 +245,16 @@ export default function Scene({
   }, [selection, marks, survey])
 
   const selectedWp = selection?.kind === 'waypoint' ? selection.index : -1
+  const flying = useRef(false)
+
+  // the selected leg, drawn over the path so it reads in 3D as well as the tree
+  const legPath = useMemo(() => {
+    if (selection?.kind !== 'leg') return null
+    const pts = survey.traj
+      .filter((t) => t.legIndex === selection.index)
+      .map((t) => v3(t).toArray() as [number, number, number])
+    return pts.length > 1 ? pts : null
+  }, [selection, survey])
 
   return (
     <Canvas
@@ -222,10 +269,11 @@ export default function Scene({
       <directionalLight position={[-8000, 7200, 4800]} intensity={1.5} />
       <Terrain survey={survey} />
       <Line points={path as [number, number, number][]} color={colors.flight} lineWidth={2} />
+      {legPath && <Line points={legPath} color={colors.aircraft} lineWidth={5} />}
+      <Rig center={center} home={homePos} focus={focus} chase={chase} flying={flying} />
       <Aircraft
         survey={survey}
         home={homePos}
-        focus={focus}
         colors={colors}
         threshold={threshold}
         playing={playing}
@@ -255,7 +303,15 @@ export default function Scene({
           />
         </mesh>
       ))}
-      {!chase && <OrbitControls target={center} maxDistance={120000} makeDefault />}
+      {/* kept mounted so its target survives a chase-cam round trip */}
+      <OrbitControls
+        enabled={!chase}
+        maxDistance={120000}
+        makeDefault
+        onStart={() => {
+          flying.current = false
+        }}
+      />
     </Canvas>
   )
 }
