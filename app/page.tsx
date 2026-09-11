@@ -63,7 +63,10 @@ export default function Page() {
   }, [playing, head, survey])
 
   const run = useCallback(
-    async (text: string, p = profile, t = threshold) => {
+    // `fresh` = a newly opened file. A re-run of the same mission keeps the
+    // selection: resetting it re-flows the inspector under the user's cursor,
+    // so the next click lands on whatever moved into that spot.
+    async (text: string, p = profile, t = threshold, fresh = false) => {
       textRef.current = text
       setBusy(true)
       setError(null)
@@ -72,7 +75,7 @@ export default function Page() {
         headRef.current = 0
         setHead(0)
         setSurvey(s)
-        setSelection({ kind: 'mission' })
+        if (fresh) setSelection({ kind: 'mission' })
       } catch (e) {
         setSurvey(null)
         setError(e instanceof Error ? e.message : String(e))
@@ -96,7 +99,7 @@ export default function Page() {
             const f = e.target.files?.[0]
             if (!f) return
             setFileName(f.name)
-            run(await f.text())
+            run(await f.text(), profile, threshold, true)
           }}
         />
         {error && <span className="text-destructive truncate text-xs">{error}</span>}
