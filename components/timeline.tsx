@@ -379,7 +379,7 @@ export function Timeline({
           </SelectContent>
         </Select>
         <span className="text-muted-foreground tabular-nums">
-          t {cur.t.toFixed(1)}s / {survey.durationS.toFixed(0)}s
+          t {cur.t.toFixed(3)}s / {survey.durationS.toFixed(3)}s
         </span>
         <span className="text-muted-foreground tabular-nums">
           {(cur.s! / 1000).toFixed(2)} km

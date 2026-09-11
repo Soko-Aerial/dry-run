@@ -180,7 +180,7 @@ export function Inspector({
               <Field label="Distance" value={`${(survey.distanceM / 1000).toFixed(2)} km`} />
               <Field
                 label="Flight time"
-                value={`${Math.floor(survey.durationS / 60)}m ${Math.round(survey.durationS % 60)}s`}
+                value={`${Math.floor(survey.durationS / 60)}m ${(survey.durationS % 60).toFixed(3)}s`}
               />
               <Field
                 label="Min clearance"
