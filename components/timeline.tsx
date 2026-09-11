@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Pause, Play, TriangleAlert } from 'lucide-react'
+import { Gauge, Pause, Play, TriangleAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -367,8 +367,13 @@ export function Timeline({
           {playing ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
         </Button>
         <Select value={String(speed)} onValueChange={(v) => setSpeed(Number(v))}>
-          <SelectTrigger size="sm" className="h-6 w-[72px] px-2 text-xs">
-            <SelectValue />
+          <SelectTrigger
+            size="sm"
+            aria-label="Playback speed"
+            className="h-6 w-[84px] gap-1 px-2 text-xs"
+          >
+            <Gauge className="text-muted-foreground size-3.5 shrink-0" />
+            <SelectValue>{(v: string) => `${v}×`}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             {[1, 2, 4, 8, 16].map((s) => (
