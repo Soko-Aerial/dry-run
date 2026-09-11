@@ -50,14 +50,6 @@ export default function Page() {
   return (
     <div className="flex h-screen bg-neutral-950 text-neutral-100">
       <aside className="w-96 shrink-0 overflow-y-auto border-r border-neutral-800 p-5 space-y-5 text-sm">
-        <div>
-          <h1 className="text-lg font-medium">dry run</h1>
-          <p className="text-neutral-400 text-xs mt-1">
-            Checks a planned mission against modelled terrain. Not an obstacle
-            check: masts, cranes, lines and trees are not reliably in this data.
-          </p>
-        </div>
-
         <label className="block">
           <span className="text-neutral-400 text-xs">Mission file (.waypoints / .plan)</span>
           <input
