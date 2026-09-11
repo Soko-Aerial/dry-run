@@ -14,7 +14,7 @@ const v3 = (p: { e: number; n: number; alt: number }) =>
 
 function Terrain({ survey }: { survey: Survey }) {
   const geom = useMemo(() => {
-    const { positions, colors, indices } = gridToMesh(survey.grid, survey.origin)
+    const { positions, colors, indices } = gridToMesh(survey.grid, survey.origin, 90_000)
     const g = new THREE.BufferGeometry()
     g.setAttribute('position', new THREE.BufferAttribute(positions, 3))
     g.setAttribute('color', new THREE.BufferAttribute(colors, 3))
@@ -194,6 +194,11 @@ export default function Scene({
 
   return (
     <Canvas
+      // ponytail: AA off and DPR capped at 1.5. On a 4K display the default
+      // devicePixelRatio alone quadruples the fragment cost for a terrain mesh
+      // that gains nothing from it.
+      dpr={[1, 1.5]}
+      gl={{ antialias: false, powerPreference: 'high-performance' }}
       camera={{
         position: [homePos.x, homePos.y, homePos.z],
         near: 1,

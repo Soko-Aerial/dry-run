@@ -142,6 +142,10 @@ export default function Page() {
               </ul>
             </div>
 
+            {survey.grid.suspect && (
+              <p className="rounded bg-red-950 p-2 text-xs text-red-300">{survey.grid.suspect}</p>
+            )}
+
             {survey.grid.synthetic && (
               <p className="rounded bg-amber-950 p-2 text-xs text-amber-300">
                 Synthetic terrain — no Mapbox token configured. Heights are fake.

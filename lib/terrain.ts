@@ -21,6 +21,8 @@ export type Grid = {
   height: number
   data: Float32Array
   synthetic: boolean
+  /** decoded heights are implausible for land — treat the verdict as void */
+  suspect: string | null
 }
 
 const lonToPx = (lon: number, z: number, ts: number) => ((lon + 180) / 360) * Math.pow(2, z) * ts
@@ -46,14 +48,21 @@ const syntheticHeight = (lat: number, lon: number) =>
 async function fetchTile(z: number, x: number, y: number, ts: number) {
   const res = await fetch(`/api/tiles/${z}/${x}/${y}`)
   if (!res.ok) return null
-  const bmp = await createImageBitmap(await res.blob())
+  // These pixels are packed numbers, not colour. Colour management must be
+  // off end to end: the browser will otherwise apply the display's ICC
+  // profile and shift elevations by kilometres — and it only happens on
+  // machines that HAVE a display profile, so it looks fine in headless.
+  const bmp = await createImageBitmap(await res.blob(), {
+    colorSpaceConversion: 'none',
+    premultiplyAlpha: 'none',
+  })
   const canvas = new OffscreenCanvas(ts, ts)
-  const ctx = canvas.getContext('2d')!
+  const ctx = canvas.getContext('2d', { colorSpace: 'srgb', willReadFrequently: true })!
   ctx.drawImage(bmp, 0, 0, ts, ts)
-  return ctx.getImageData(0, 0, ts, ts).data
+  return ctx.getImageData(0, 0, ts, ts, { colorSpace: 'srgb' }).data
 }
 
-export async function loadGrid(bbox: Bbox, z = 14, marginTiles = 1): Promise<Grid> {
+export async function loadGrid(bbox: Bbox, z = 14, marginTiles = 0): Promise<Grid> {
   const ts = 512 // @2x tiles
   const tx0 = Math.floor(lonToPx(bbox.minLon, z, ts) / ts) - marginTiles
   const tx1 = Math.floor(lonToPx(bbox.maxLon, z, ts) / ts) + marginTiles
@@ -73,7 +82,10 @@ export async function loadGrid(bbox: Bbox, z = 14, marginTiles = 1): Promise<Gri
   )
 
   const synthetic = tiles.some((t) => t === null)
-  const grid: Grid = { z, tileSize: ts, px0: tx0 * ts, py0: ty0 * ts, width, height, data, synthetic }
+  const grid: Grid = {
+    z, tileSize: ts, px0: tx0 * ts, py0: ty0 * ts, width, height, data, synthetic,
+    suspect: null,
+  }
 
   if (synthetic) {
     for (let y = 0; y < height; y++) {
@@ -85,7 +97,8 @@ export async function loadGrid(bbox: Bbox, z = 14, marginTiles = 1): Promise<Gri
     return grid
   }
 
-  tiles.forEach((px, i) => {
+  const tilesData = tiles
+  tilesData.forEach((px, i) => {
     if (!px) return
     const ox = (i % cols) * ts
     const oy = Math.floor(i / cols) * ts
@@ -96,6 +109,13 @@ export async function loadGrid(bbox: Bbox, z = 14, marginTiles = 1): Promise<Gri
       }
     }
   })
+
+  // A wrong decode produces a confident verdict on nonsense. Lowest dry land
+  // on earth is about -430m; nothing we survey is above 9000m.
+  const { min, max } = gridStats(grid)
+  if (min < -500 || max > 9000) {
+    grid.suspect = `Decoded elevations span ${min.toFixed(0)}m to ${max.toFixed(0)}m — implausible for land. Terrain decode is wrong; ignore this verdict.`
+  }
   return grid
 }
 
@@ -131,7 +151,7 @@ export function gridStats(grid: Grid) {
   return { min, max }
 }
 
-export function bboxOf(pts: { lat: number; lon: number }[], padDeg = 0.004): Bbox {
+export function bboxOf(pts: { lat: number; lon: number }[], padDeg = 0.002): Bbox {
   const lats = pts.map((p) => p.lat)
   const lons = pts.map((p) => p.lon)
   return {
@@ -150,7 +170,7 @@ export function bboxOf(pts: { lat: number; lon: number }[], padDeg = 0.004): Bbo
 export function gridToMesh(
   grid: Grid,
   origin: { lat: number; lon: number },
-  maxVerts = 250_000,
+  maxVerts = 90_000,
 ) {
   const step = Math.max(1, Math.ceil(Math.sqrt((grid.width * grid.height) / maxVerts)))
   const cols = Math.floor(grid.width / step)
