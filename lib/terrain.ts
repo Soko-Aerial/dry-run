@@ -1,3 +1,5 @@
+import { decodePng } from './png'
+
 /**
  * Terrain heights from Mapbox terrain-RGB tiles.
  *
@@ -45,21 +47,10 @@ const syntheticHeight = (lat: number, lon: number) =>
   60 * Math.sin(lat * 2600 + 1.3) +
   40 * Math.cos(lon * 3100)
 
-async function fetchTile(z: number, x: number, y: number, ts: number) {
+async function fetchTile(z: number, x: number, y: number) {
   const res = await fetch(`/api/tiles/${z}/${x}/${y}`)
   if (!res.ok) return null
-  // These pixels are packed numbers, not colour. Colour management must be
-  // off end to end: the browser will otherwise apply the display's ICC
-  // profile and shift elevations by kilometres — and it only happens on
-  // machines that HAVE a display profile, so it looks fine in headless.
-  const bmp = await createImageBitmap(await res.blob(), {
-    colorSpaceConversion: 'none',
-    premultiplyAlpha: 'none',
-  })
-  const canvas = new OffscreenCanvas(ts, ts)
-  const ctx = canvas.getContext('2d', { colorSpace: 'srgb', willReadFrequently: true })!
-  ctx.drawImage(bmp, 0, 0, ts, ts)
-  return ctx.getImageData(0, 0, ts, ts, { colorSpace: 'srgb' }).data
+  return decodePng(await res.arrayBuffer())
 }
 
 export async function loadGrid(bbox: Bbox, z = 14, marginTiles = 0): Promise<Grid> {
@@ -77,7 +68,7 @@ export async function loadGrid(bbox: Bbox, z = 14, marginTiles = 0): Promise<Gri
 
   const tiles = await Promise.all(
     Array.from({ length: cols * rows }, (_, i) =>
-      fetchTile(z, tx0 + (i % cols), ty0 + Math.floor(i / cols), ts),
+      fetchTile(z, tx0 + (i % cols), ty0 + Math.floor(i / cols)),
     ),
   )
 
@@ -98,14 +89,15 @@ export async function loadGrid(bbox: Bbox, z = 14, marginTiles = 0): Promise<Gri
   }
 
   const tilesData = tiles
-  tilesData.forEach((px, i) => {
-    if (!px) return
+  tilesData.forEach((png, i) => {
+    if (!png) return
     const ox = (i % cols) * ts
     const oy = Math.floor(i / cols) * ts
+    const ch = png.channels
     for (let y = 0; y < ts; y++) {
       for (let x = 0; x < ts; x++) {
-        const s = (y * ts + x) * 4
-        data[(oy + y) * width + ox + x] = decode(px[s], px[s + 1], px[s + 2])
+        const s = (y * png.width + x) * ch
+        data[(oy + y) * width + ox + x] = decode(png.data[s], png.data[s + 1], png.data[s + 2])
       }
     }
   })
@@ -151,7 +143,12 @@ export function gridStats(grid: Grid) {
   return { min, max }
 }
 
-export function bboxOf(pts: { lat: number; lon: number }[], padDeg = 0.002): Bbox {
+/**
+ * Mission bounding box plus ~550m. The pad is deliberate, not incidental: it
+ * defines the area "highest terrain" is reported over, so shrinking it to save
+ * tiles quietly changes an answer the pilot relies on.
+ */
+export function bboxOf(pts: { lat: number; lon: number }[], padDeg = 0.005): Bbox {
   const lats = pts.map((p) => p.lat)
   const lons = pts.map((p) => p.lon)
   return {

@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
-import { PROFILES, type VehicleProfile } from '@/lib/trajectory'
+import { PROFILES, turnRadiusFor, type VehicleProfile } from '@/lib/trajectory'
 import { runSurvey, type Survey } from '@/lib/survey'
 
 const Scene = dynamic(() => import('@/components/Scene'), { ssr: false })
@@ -51,9 +51,10 @@ export default function Page() {
     <div className="flex h-screen bg-neutral-950 text-neutral-100">
       <aside className="w-96 shrink-0 overflow-y-auto border-r border-neutral-800 p-5 space-y-5 text-sm">
         <div>
-          <h1 className="text-lg font-semibold">dry run</h1>
+          <h1 className="text-lg font-medium">dry run</h1>
           <p className="text-neutral-400 text-xs mt-1">
-            Terrain-aware pre-flight survey. Sees hills — not masts, cranes, lines or trees.
+            Checks a planned mission against modelled terrain. Not an obstacle
+            check: masts, cranes, lines and trees are not reliably in this data.
           </p>
         </div>
 
@@ -85,6 +86,7 @@ export default function Page() {
           {(
             [
               ['cruiseMs', 'Cruise speed', 'm/s'],
+              ['maxBankDeg', 'Max bank', '°'],
               ['turnRadiusM', 'Turn radius', 'm'],
               ['maxClimbMs', 'Max climb', 'm/s'],
               ['maxDescentMs', 'Max descent', 'm/s'],
@@ -96,8 +98,17 @@ export default function Page() {
               </span>
               <input
                 type="number"
-                value={profile[key]}
-                onChange={(e) => setProfile({ ...profile, [key]: Number(e.target.value) })}
+                value={Math.round(profile[key] * 10) / 10}
+                onChange={(e) => {
+                  const v = Number(e.target.value)
+                  const next = { ...profile, [key]: v }
+                  // radius follows speed and bank (r = v^2/g.tan(phi)) unless
+                  // the pilot overrides it directly
+                  if (key === 'cruiseMs' || key === 'maxBankDeg') {
+                    next.turnRadiusM = turnRadiusFor(next.cruiseMs, next.maxBankDeg)
+                  }
+                  setProfile(next)
+                }}
                 className="w-20 rounded bg-neutral-800 px-2 py-1 text-right text-xs"
               />
             </label>
@@ -129,7 +140,7 @@ export default function Page() {
             <div
               className={`rounded p-3 ${survey.verdict === 'GO' ? 'bg-green-950' : 'bg-red-950'}`}
             >
-              <div className="text-xl font-semibold">
+              <div className="text-xl font-medium">
                 {survey.verdict}
                 <span className="ml-2 text-xs font-normal opacity-70">
                   {survey.verdict === 'GO' ? 'no terrain conflict' : `${survey.issues.length} issue(s)`}
@@ -154,7 +165,7 @@ export default function Page() {
 
             <dl className="space-y-1 text-xs">
               {[
-                ['Highest terrain', `${m(survey.highestTerrain)} AMSL (${m(survey.highestTerrain - survey.launchAmsl)} above launch)`],
+                ['Highest terrain (±550m of route)', `${m(survey.highestTerrain)} AMSL (${m(survey.highestTerrain - survey.launchAmsl)} above launch)`],
                 ['Lowest terrain', `${m(survey.lowestTerrain)} AMSL`],
                 ['Launch elevation', `${m(survey.launchAmsl)} AMSL`],
                 ['Min clearance', `${m(survey.minClearance)} on leg ${survey.minClearanceLeg + 1}`],

@@ -4,7 +4,7 @@ import { strict as assert } from 'node:assert'
 import { readFileSync, readdirSync } from 'node:fs'
 import { parseMission, toAmsl } from './mission'
 
-const files = readdirSync('samples')
+const files = readdirSync('samples').filter((f) => /\.(waypoints|txt|plan)$/.test(f))
 assert.ok(files.length >= 6, 'sample corpus missing')
 
 for (const f of files) {

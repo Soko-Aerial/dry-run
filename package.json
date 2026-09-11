@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx lib/trajectory.test.ts && tsx lib/mission.test.ts",
+    "test": "tsx lib/trajectory.test.ts && tsx lib/mission.test.ts && tsx lib/png.test.mts",
     "smoke": "tsx smoke.mts"
   },
   "dependencies": {

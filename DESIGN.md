@@ -20,9 +20,9 @@ sampling sees hills. It does not see power lines, masts, cranes or treelines.
 | 2 | Parse both ArduPilot `.waypoints` and QGC `.plan` | Mission Planner writes the former, QGC the latter. Sniff on load. |
 | 3 | Fixed-wing **and** multirotor, one model | Multirotor is a fixed-wing with turn radius 0. One trajectory generator, two profiles. |
 | 4 | Vehicle profile fully configurable | Paper specs lie; real airframes need tuning. |
-| 5 | Terrain-RGB tiles (Mapbox, z14, ~10 m/px) | Only source that serves clearance checks, area max-height, and a 3D mesh from one fetch. |
+| 5 | Mapbox terrain-DEM v1 tiles, z14 @2x | Only source that serves clearance checks, area max-height, and a 3D mesh from one fetch. `mapbox.terrain-rgb` is frozen since Dec 2021; DEM-v1 returned byte-identical tiles at z12/14/15 when compared, so the switch is free. |
 | 6 | Tiles proxied server-side | Keeps the Mapbox key off the client. |
-| 7 | **All altitudes converted to AMSL internally** | Clearance is `aircraftAMSL - terrainAMSL`. Single frame, one subtraction, no silent frame bugs. |
+| 7 | **All altitudes converted to AMSL internally** | Clearance is `aircraftAMSL - terrainAMSL`. Single frame, one subtraction, no silent frame bugs. Frame numbers verified against MAVLink `common.xml`, not memory. |
 | 8 | Display three numbers per waypoint | AMSL / above-launch / above-ground. Pilot thinks in the 2nd, terrain kills via the 3rd. |
 | 9 | Launch elevation sampled from terrain | Home lat/lon is in the file. Don't make the pilot type a datum. |
 | 10 | Mesh resolution ≠ clearance resolution | Mesh downsampled for framerate; clearance sampled every ~5 m on full-res data. Verdict wins if they disagree. |
@@ -78,6 +78,9 @@ components/Scene.tsx                terrain mesh, aircraft, cameras
 `lib/trajectory.ts` holds the only real logic and is the only file with a
 test: climb clamped over limit, corner cut inside waypoint by turn radius,
 leg under a ridge reports negative clearance. Three asserts, no framework.
+
+| 16 | PNG decoded by hand, never via canvas | `createImageBitmap`/`drawImage`/`getImageData` is a rendering path and rounds. Observed losing one count in the red channel on Windows Chrome — a 6553.6 m elevation error that still looked like terrain. `DecompressionStream` makes an exact decoder ~70 lines with no dependency. |
+| 17 | Unknown commands carrying a position produce a warning | Silently dropping a waypoint yields a confident verdict on a path that isn't the mission. |
 
 ## Open
 

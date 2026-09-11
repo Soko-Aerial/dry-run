@@ -27,9 +27,14 @@ export type RawMission = {
 }
 
 // MAV_FRAME
+// Values verified against mavlink/message_definitions/v1.0/common.xml.
+// Getting 5 wrong is not cosmetic: an absolute-altitude mission misread as
+// relative has launch elevation added to it, inventing clearance it does not
+// have. At Davos that is 1561m of phantom margin and a false GO.
 const FRAMES: Record<number, AltFrame> = {
   0: 'amsl', // GLOBAL
   3: 'relative', // GLOBAL_RELATIVE_ALT
+  5: 'amsl', // GLOBAL_INT
   6: 'relative', // GLOBAL_RELATIVE_ALT_INT
   10: 'terrain', // GLOBAL_TERRAIN_ALT
   11: 'terrain', // GLOBAL_TERRAIN_ALT_INT
@@ -46,9 +51,11 @@ const NAV_COMMANDS = new Set([
   21, // LAND
   22, // TAKEOFF
   31, // LOITER_TO_ALT
+  36, // ARC_WAYPOINT
   82, // SPLINE_WAYPOINT
   84, // VTOL_TAKEOFF
   85, // VTOL_LAND
+  94, // PAYLOAD_PLACE
 ])
 
 /** Sniff the format. .plan is JSON, .waypoints starts with a WPL header. */
@@ -93,8 +100,17 @@ export function parseWaypoints(text: string): RawMission {
       home = { lat, lon, alt }
       continue
     }
-    // DO_ / CONDITION_ commands carry no position.
-    if (!NAV_COMMANDS.has(command)) continue
+    // DO_/CONDITION_ commands carry no position, so a zero coordinate is
+    // expected. A command we don't know that DOES carry one is a waypoint we
+    // are about to drop silently — say so instead.
+    if (!NAV_COMMANDS.has(command)) {
+      if (lat !== 0 || lon !== 0) {
+        warnings.push(
+          `Command ${command} carries a position but is not a known nav command — that waypoint is NOT included in this check`,
+        )
+      }
+      continue
+    }
     if (lat === 0 && lon === 0) continue
 
     waypoints.push({ lat, lon, alt, frame: frameOf(frameN, warnings), command })
@@ -123,22 +139,36 @@ export function parsePlan(text: string): RawMission {
         if (Array.isArray(nested)) {
           walk(nested)
         } else {
+          // QGC stores a survey/corridor pattern as its polygon plus settings
+          // and regenerates the transects itself, so the flown waypoints are
+          // simply not in the file. Nothing to parse — say so loudly.
           warnings.push(
-            `Complex item "${String(item.complexItemType ?? 'unknown')}" could not be expanded — its waypoints are missing from this check`,
+            `Survey pattern "${String(item.complexItemType ?? 'unknown')}" is stored as a polygon, not waypoints — its transects are NOT checked. Re-export the plan as waypoints to check them.`,
           )
         }
         continue
       }
       const command = Number(item.command)
-      if (!NAV_COMMANDS.has(command)) continue
-      // Two shapes in the wild: older files carry `coordinate`, newer ones put
-      // lat/lon/alt in MAVLink params 5-7. Reading only one silently drops
-      // every waypoint and reports an empty mission.
+      if (!NAV_COMMANDS.has(command)) {
+        const c = (item.coordinate as number[] | undefined) ?? []
+        const pp = item.params as number[] | undefined
+        if ((c[0] ?? pp?.[4] ?? 0) !== 0 || (c[1] ?? pp?.[5] ?? 0) !== 0) {
+          warnings.push(
+            `Command ${command} carries a position but is not a known nav command — that waypoint is NOT included in this check`,
+          )
+        }
+        continue
+      }
+      // params[4..6] is the documented encoding; older files carry `coordinate`
+      // instead with a short params array. Reading only one of the two silently
+      // drops every waypoint and reports an empty mission.
       const coord = item.coordinate as number[] | undefined
       const params = item.params as number[] | undefined
-      const [lat, lon, alt] = Array.isArray(coord) && coord.length >= 3
-        ? [coord[0], coord[1], coord[2]]
-        : [params?.[4], params?.[5], params?.[6]]
+      const [lat, lon, alt] = Number.isFinite(params?.[4])
+        ? [params![4], params![5], params![6]]
+        : Array.isArray(coord) && coord.length >= 3
+          ? [coord[0], coord[1], coord[2]]
+          : [undefined, undefined, undefined]
       if (lat == null || lon == null || (lat === 0 && lon === 0)) continue
       waypoints.push({
         lat,

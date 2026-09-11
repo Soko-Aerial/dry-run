@@ -37,7 +37,11 @@ export async function runSurvey(
   thresholdM: number,
 ): Promise<Survey> {
   const mission = parseMission(text)
-  if (mission.waypoints.length < 2) throw new Error('Mission needs at least two waypoints')
+  if (mission.waypoints.length < 2) {
+    throw new Error(
+      ['Mission needs at least two waypoints.', ...mission.warnings].join(' '),
+    )
+  }
 
   const pts = [...mission.waypoints, ...(mission.home ? [mission.home] : [])]
   const grid = await loadGrid(bboxOf(pts))

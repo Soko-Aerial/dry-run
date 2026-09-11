@@ -12,16 +12,40 @@
 
 export type VehicleProfile = {
   cruiseMs: number
+  /** derived from cruise speed and bank limit, but overridable */
   turnRadiusM: number
+  maxBankDeg: number
   maxClimbMs: number
   maxDescentMs: number
 }
 
+const G = 9.80665
+
+/**
+ * Coordinated-turn radius: r = v^2 / (g tan phi).
+ *
+ * A fixed-wing's turn is set by its bank-angle limit, not by a radius the
+ * pilot picks — ArduPlane's L1 controller commands lateral acceleration of
+ * g*tan(roll), capped by LIM_ROLL_CD. It matters here because radius goes with
+ * the SQUARE of speed: raise cruise from 18 to 25 m/s and the turn opens from
+ * 47m to 91m, which moves where the aircraft actually flies.
+ */
+export function turnRadiusFor(cruiseMs: number, maxBankDeg: number) {
+  if (maxBankDeg <= 0) return 0
+  return (cruiseMs * cruiseMs) / (G * Math.tan((maxBankDeg * Math.PI) / 180))
+}
+
 export const PROFILES: Record<string, VehicleProfile> = {
-  // ponytail: multirotor = fixed-wing with turn radius 0. One model, two profiles.
+  // ponytail: multirotor = fixed-wing with bank limit 0 => radius 0. One model.
   // Defaults are ballpark. Real airframes get tuned in the UI.
-  multirotor: { cruiseMs: 8, turnRadiusM: 0, maxClimbMs: 5, maxDescentMs: 3 },
-  fixedwing: { cruiseMs: 18, turnRadiusM: 40, maxClimbMs: 3, maxDescentMs: 4 },
+  multirotor: { cruiseMs: 8, turnRadiusM: 0, maxBankDeg: 0, maxClimbMs: 5, maxDescentMs: 3 },
+  fixedwing: {
+    cruiseMs: 18,
+    maxBankDeg: 35,
+    turnRadiusM: turnRadiusFor(18, 35),
+    maxClimbMs: 3,
+    maxDescentMs: 4,
+  },
 }
 
 /** Waypoint in local ENU metres. alt is AMSL — always. See DESIGN.md #7. */
