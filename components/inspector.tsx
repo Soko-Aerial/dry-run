@@ -1,22 +1,37 @@
 'use client'
 
+import { useState } from 'react'
+import dynamic from 'next/dynamic'
+import { RefreshCw, Trash2, Upload } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { ButtonGroup, ButtonGroupSeparator } from '@/components/ui/button-group'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { turnRadiusFor, type VehicleProfile } from '@/lib/trajectory'
 import type { Selection, Survey } from '@/lib/survey'
 
+const ModelPreview = dynamic(() => import('@/components/model-preview'), { ssr: false })
+
 const m = (v: number) => `${v.toFixed(0)} m`
+
+// One property row shape everywhere: muted label in a fixed column, value
+// left-aligned in the next, so values line up down the whole panel.
+const ROW = 'grid grid-cols-[minmax(0,9.5rem)_1fr] gap-2 py-[3px] text-xs'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="border-border/60 border-b py-2">
-      <div className="px-3 pb-1 text-[11px] font-medium">
-        {title}
-      </div>
-      <div className="space-y-0.5 px-3">{children}</div>
+      <div className="px-3 pb-1.5 text-[11px] font-medium">{title}</div>
+      <div className="px-3">{children}</div>
     </div>
   )
 }
@@ -31,11 +46,11 @@ function Field({
   tone?: 'bad' | 'good'
 }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 text-xs">
-      <span className="text-muted-foreground shrink-0">{label}</span>
+    <div className={cn(ROW, 'items-baseline')}>
+      <span className="text-muted-foreground truncate">{label}</span>
       <span
         className={cn(
-          'truncate text-right tabular-nums',
+          'truncate tabular-nums',
           tone === 'bad' && 'text-destructive',
           tone === 'good' && 'text-emerald-500',
         )}
@@ -57,16 +72,27 @@ function NumberField({
   value: number
   onChange: (v: number) => void
 }) {
+  // Holds what is typed, so "-" and "" survive long enough to become "-90".
+  // A plain controlled number input snapped an emptied field straight back to 0.
+  const [draft, setDraft] = useState<string | null>(null)
+
   return (
-    <div className="flex items-center justify-between gap-2 text-xs">
-      <span className="text-muted-foreground">
+    <div className={cn(ROW, 'items-center')}>
+      <span className="text-muted-foreground truncate">
         {label} <span className="opacity-60">{unit}</span>
       </span>
       <Input
-        type="number"
-        value={Math.round(value * 10) / 10}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="h-6 w-20 px-1.5 text-right text-xs tabular-nums"
+        type="text"
+        inputMode="numeric"
+        value={draft ?? String(Math.round(value * 10) / 10)}
+        onChange={(e) => {
+          const v = e.target.value
+          setDraft(v)
+          const n = Number(v)
+          if (v.trim() !== '' && Number.isFinite(n)) onChange(n)
+        }}
+        onBlur={() => setDraft(null)}
+        className="h-6 w-20 px-1.5 text-xs tabular-nums"
       />
     </div>
   )
@@ -75,6 +101,12 @@ function NumberField({
 export function Inspector({
   kind,
   setKind,
+  modelName,
+  modelUrl,
+  modelYaw,
+  setModelYaw,
+  onPickModel,
+  onClearModel,
   survey,
   selection,
   profile,
@@ -86,6 +118,12 @@ export function Inspector({
 }: {
   kind: 'fixedwing' | 'multirotor'
   setKind: (k: 'fixedwing' | 'multirotor') => void
+  modelName: string | null
+  modelUrl: string | null
+  modelYaw: number
+  setModelYaw: (v: number) => void
+  onPickModel: () => void
+  onClearModel: () => void
   survey: Survey | null
   selection: Selection | null
   profile: VehicleProfile
@@ -100,18 +138,26 @@ export function Inspector({
   const vehicle = (
     <>
       <Section title="Vehicle">
-        <div className="flex gap-1 pb-1.5">
-          {(['fixedwing', 'multirotor'] as const).map((k) => (
-            <Button
-              key={k}
-              size="sm"
-              variant={kind === k ? 'secondary' : 'ghost'}
-              className="h-6 flex-1 px-2 text-xs"
-              onClick={() => setKind(k)}
-            >
-              {k === 'fixedwing' ? 'Fixed-wing' : 'Multirotor'}
-            </Button>
-          ))}
+        <div className={cn(ROW, 'items-center')}>
+          <span className="text-muted-foreground truncate">Type</span>
+          <Select
+            value={kind}
+            onValueChange={(v) => setKind(v as 'fixedwing' | 'multirotor')}
+          >
+            <SelectTrigger size="sm" className="h-6 w-full px-2 text-xs">
+              <SelectValue>
+                {(v: string) => (v === 'fixedwing' ? 'Fixed-wing' : 'Multirotor')}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="fixedwing" className="text-xs">
+                Fixed-wing
+              </SelectItem>
+              <SelectItem value="multirotor" className="text-xs">
+                Multirotor
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         {(
           [
@@ -137,6 +183,48 @@ export function Inspector({
             }}
           />
         ))}
+        <div className={cn(ROW, 'items-center')}>
+          <span className="text-muted-foreground truncate">Model</span>
+          {modelName ? (
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="truncate" title={modelName}>
+                {modelName}
+              </span>
+              <ButtonGroup className="ml-auto shrink-0">
+                <Button
+                  size="icon-sm"
+                  variant="secondary"
+                  aria-label="Replace model"
+                  onClick={onPickModel}
+                >
+                  <RefreshCw />
+                </Button>
+                <ButtonGroupSeparator />
+                <Button
+                  size="icon-sm"
+                  variant="secondary"
+                  aria-label="Remove model"
+                  onClick={onClearModel}
+                >
+                  <Trash2 />
+                </Button>
+              </ButtonGroup>
+            </div>
+          ) : (
+            <Button size="xs" variant="secondary" onClick={onPickModel} className="justify-start">
+              <Upload />
+              Import .glb
+            </Button>
+          )}
+        </div>
+        {modelUrl && (
+          <>
+            <div className="bg-muted/40 border-border/60 mt-1 overflow-hidden rounded-md border">
+              <ModelPreview url={modelUrl} yawDeg={modelYaw} />
+            </div>
+            <NumberField label="Model yaw" unit="°" value={modelYaw} onChange={setModelYaw} />
+          </>
+        )}
       </Section>
       <Section title="Check">
         <NumberField

@@ -42,6 +42,10 @@ export default function Page() {
   const [threshold, setThreshold] = useState(30)
   const [survey, setSurvey] = useState<Survey | null>(null)
   const [fileName, setFileName] = useState<string | null>(null)
+  const [model, setModel] = useState<{ url: string; name: string } | null>(null)
+  // glTF assets disagree on the forward axis; -90° suits a nose-along-+X model,
+  // which is the common case. The knob in the inspector covers the rest.
+  const [modelYaw, setModelYaw] = useState(-90)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selection, setSelection] = useState<Selection | null>({ kind: 'mission' })
@@ -55,6 +59,7 @@ export default function Page() {
   const headRef = useRef(0)
   const textRef = useRef<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const modelRef = useRef<HTMLInputElement>(null)
 
   // Playback clamps at the last sample but nothing cleared the flag, so the
   // button showed Pause on a stopped flight and one click both rewound and
@@ -109,6 +114,20 @@ export default function Page() {
             if (!f) return
             setFileName(f.name)
             run(await f.text(), profile, threshold, true)
+          }}
+        />
+        <input
+          ref={modelRef}
+          type="file"
+          accept=".glb,.gltf"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (!f) return
+            setModel((prev) => {
+              if (prev) URL.revokeObjectURL(prev.url)
+              return { url: URL.createObjectURL(f), name: f.name }
+            })
           }}
         />
         {error && <span className="text-destructive truncate text-xs">{error}</span>}
@@ -182,6 +201,8 @@ export default function Page() {
                 {survey ? (
                   <>
                     <Scene
+                      modelUrl={model?.url ?? null}
+                      modelYawDeg={modelYaw}
                       survey={survey}
                       threshold={threshold}
                       playing={playing}
@@ -266,6 +287,15 @@ export default function Page() {
                 </PanelTitle>
                 <div className="min-h-0 flex-1">
                   <Inspector
+                    modelName={model?.name ?? null}
+                    modelUrl={model?.url ?? null}
+                    modelYaw={modelYaw}
+                    setModelYaw={setModelYaw}
+                    onPickModel={() => modelRef.current?.click()}
+                    onClearModel={() => {
+                      if (model) URL.revokeObjectURL(model.url)
+                      setModel(null)
+                    }}
                     kind={kind}
                     setKind={(k) => {
                       setKind(k)

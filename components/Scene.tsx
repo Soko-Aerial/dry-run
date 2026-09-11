@@ -1,16 +1,12 @@
 'use client'
 
-import { Fragment, useEffect, useMemo, useRef } from 'react'
+import { Suspense, useEffect, useMemo, useRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls, Line } from '@react-three/drei'
 import { useTheme } from 'next-themes'
-import { Maximize2, ZoomIn, ZoomOut } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import {
-  ButtonGroup,
-  ButtonGroupSeparator,
-} from '@/components/ui/button-group'
+import { ZoomButtons, type ZoomCmd } from '@/components/zoom-buttons'
 import * as THREE from 'three'
+import { Model } from '@/components/model'
 import { gridToMesh } from '@/lib/terrain'
 import { enuFactors } from '@/lib/mission'
 import type { Selection, Survey } from '@/lib/survey'
@@ -50,6 +46,9 @@ function Aircraft({
   chase,
   home,
   colors,
+  onSelectVehicle,
+  modelUrl,
+  modelYawDeg,
   headRef,
   onTick,
 }: {
@@ -58,8 +57,11 @@ function Aircraft({
   playing: boolean
   speed: number
   chase: boolean
+  onSelectVehicle: () => void
   home: THREE.Vector3
   colors: (typeof PALETTE)['dark']
+  modelUrl: string | null
+  modelYawDeg: number
   headRef: React.RefObject<number>
   onTick: (i: number) => void
 }) {
@@ -115,12 +117,29 @@ function Aircraft({
 
   return (
     <>
-      <group ref={body}>
-        {/* ponytail: cone, exaggerated ~20m for visibility at survey scale */}
-        <mesh rotation={[Math.PI / 2, 0, 0]}>
-          <coneGeometry args={[7, 22, 8]} />
-          <meshStandardMaterial color={colors.aircraft} />
-        </mesh>
+      <group
+        ref={body}
+        onClick={(e) => {
+          e.stopPropagation()
+          onSelectVehicle()
+        }}
+      >
+        {/* ponytail: cone, exaggerated ~20m for visibility at survey scale.
+            An imported .glb replaces it at the same size. */}
+        {modelUrl ? (
+          // ponytail: glTF assets don't agree on which way the nose points, so
+          // this is a knob rather than a guess.
+          <group rotation={[0, (modelYawDeg * Math.PI) / 180, 0]}>
+            <Suspense fallback={null}>
+              <Model url={modelUrl} />
+            </Suspense>
+          </group>
+        ) : (
+          <mesh rotation={[Math.PI / 2, 0, 0]}>
+            <coneGeometry args={[7, 22, 8]} />
+            <meshStandardMaterial color={colors.aircraft} />
+          </mesh>
+        )}
       </group>
       <line ref={drop as never}>
         <bufferGeometry>
@@ -132,14 +151,13 @@ function Aircraft({
   )
 }
 
-type ZoomCmd = 'in' | 'out' | 'fit' | 'stop'
-
 function Rig({
   center,
   home,
   focus,
   chase,
   flying,
+  quiet,
   cmd,
 }: {
   center: THREE.Vector3
@@ -147,11 +165,14 @@ function Rig({
   focus: THREE.Vector3 | null
   chase: boolean
   flying: React.RefObject<boolean>
+  quiet: React.RefObject<boolean>
   cmd: React.RefObject<((what: ZoomCmd) => void) | null>
 }) {
   const { camera, controls } = useThree() as unknown as {
     camera: THREE.Camera
-    controls: { target: THREE.Vector3; update: () => void } | null
+    controls:
+      | { target: THREE.Vector3; update: () => void; mouseButtons: { LEFT: number } }
+      | null
   }
   const goal = useRef<{ pos: THREE.Vector3; target: THREE.Vector3 } | null>(null)
 
@@ -184,11 +205,35 @@ function Rig({
     goal.current = { pos: t.clone().addScaledVector(offset.normalize(), d), target: t }
   }
 
-  // A selection flies the camera to it, then hands control back. It used to
-  // lerp forever, so dragging snapped back the moment you let go.
+  // Shift makes the left button pan. Right-drag pans too, but a trackpad
+  // makes that awkward and nothing on screen says the button exists.
   useEffect(() => {
+    if (!controls) return
+    const set = (pan: boolean) => {
+      controls.mouseButtons.LEFT = pan ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE
+    }
+    const down = (e: KeyboardEvent) => e.key === 'Shift' && set(true)
+    const up = (e: KeyboardEvent) => e.key === 'Shift' && set(false)
+    window.addEventListener('keydown', down)
+    window.addEventListener('keyup', up)
+    return () => {
+      window.removeEventListener('keydown', down)
+      window.removeEventListener('keyup', up)
+      set(false)
+    }
+  }, [controls])
+
+  // A selection flies the camera to it, then hands control back. It used to
+  // lerp forever, so dragging snapped back the moment you let go. Clicking the
+  // thing in 3D selects without moving the camera — you are already looking.
+  useEffect(() => {
+    if (quiet.current) {
+      quiet.current = false
+      flying.current = false
+      return
+    }
     flying.current = !!focus
-  }, [focus, flying])
+  }, [focus, flying, quiet])
 
   useFrame(() => {
     if (chase) {
@@ -218,6 +263,8 @@ export default function Scene({
   playing,
   speed,
   chase,
+  modelUrl,
+  modelYawDeg,
   headRef,
   onTick,
   selection,
@@ -228,6 +275,8 @@ export default function Scene({
   playing: boolean
   speed: number
   chase: boolean
+  modelUrl: string | null
+  modelYawDeg: number
   headRef: React.RefObject<number>
   onTick: (i: number) => void
   selection: Selection | null
@@ -287,6 +336,7 @@ export default function Scene({
 
   const selectedWp = selection?.kind === 'waypoint' ? selection.index : -1
   const flying = useRef(false)
+  const quiet = useRef(false) // selection came from a click in the scene
   const cmd = useRef<((what: ZoomCmd) => void) | null>(null)
 
   // the selected leg, drawn over the path so it reads in 3D as well as the tree
@@ -311,7 +361,26 @@ export default function Scene({
       <hemisphereLight intensity={0.35} groundColor={colors.ground} color={colors.sky} />
       <directionalLight position={[-8000, 7200, 4800]} intensity={1.5} />
       <Terrain survey={survey} />
-      <Line points={path as [number, number, number][]} color={colors.flight} lineWidth={2} />
+      <Line
+        points={path as [number, number, number][]}
+        color={colors.flight}
+        lineWidth={2}
+        onClick={(e) => {
+          e.stopPropagation()
+          const p = e.point
+          let best = 0
+          let bestD = Infinity
+          survey.traj.forEach((t, i) => {
+            const d = (t.e - p.x) ** 2 + (t.alt - p.y) ** 2 + (-t.n - p.z) ** 2
+            if (d < bestD) {
+              bestD = d
+              best = i
+            }
+          })
+          quiet.current = true
+          onSelect({ kind: 'leg', index: survey.traj[best].legIndex })
+        }}
+      />
       {legPath && <Line points={legPath} color={colors.aircraft} lineWidth={5} />}
       <Rig
         center={center}
@@ -319,12 +388,19 @@ export default function Scene({
         focus={focus}
         chase={chase}
         flying={flying}
+        quiet={quiet}
         cmd={cmd}
       />
       <Aircraft
         survey={survey}
         home={homePos}
         colors={colors}
+        modelUrl={modelUrl}
+        modelYawDeg={modelYawDeg}
+        onSelectVehicle={() => {
+          quiet.current = true
+          onSelect({ kind: 'vehicle' })
+        }}
         threshold={threshold}
         playing={playing}
         speed={speed}
@@ -338,11 +414,12 @@ export default function Scene({
           position={m}
           onClick={(e) => {
             e.stopPropagation()
+            quiet.current = true
             onSelect({ kind: 'waypoint', index: i })
           }}
         >
           <sphereGeometry
-            args={[Math.max(6, dist * 0.006) * (i === selectedWp ? 1.8 : 1), 12, 12]}
+            args={[Math.max(3, dist * 0.0035) * (i === selectedWp ? 1.8 : 1), 12, 12]}
           />
           <meshStandardMaterial
             color={
@@ -356,6 +433,8 @@ export default function Scene({
       {/* kept mounted so its target survives a chase-cam round trip */}
       <OrbitControls
         enabled={!chase}
+        // pan across the ground rather than across the screen — this is a map
+        screenSpacePanning={false}
         maxDistance={120000}
         makeDefault
         onStart={() => {
@@ -364,32 +443,11 @@ export default function Scene({
         }}
       />
     </Canvas>
-    <ButtonGroup
-      orientation="vertical"
-      className="bg-card/80 border-border/60 absolute right-2 bottom-2 rounded-md border p-0.5 backdrop-blur"
-    >
-      {(
-        [
-          [ZoomIn, 'in', 'Zoom in'],
-          [ZoomOut, 'out', 'Zoom out'],
-          [Maximize2, 'fit', 'Frame mission'],
-        ] as const
-      ).map(([Icon, what, label], i) => (
-        <Fragment key={what}>
-          {i > 0 && <ButtonGroupSeparator />}
-          <Button
-            size="icon"
-            variant="ghost"
-            aria-label={label}
-            className="size-7"
-            disabled={chase}
-            onClick={() => cmd.current?.(what)}
-          >
-            <Icon className="size-3.5" />
-          </Button>
-        </Fragment>
-      ))}
-    </ButtonGroup>
+    <ZoomButtons
+      onZoom={(what) => cmd.current?.(what)}
+      disabled={chase}
+      className="absolute right-2 bottom-2"
+    />
     </>
   )
 }
