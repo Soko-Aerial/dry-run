@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
 import localFont from 'next/font/local'
+import { ThemeProvider } from 'next-themes'
+import { TooltipProvider } from '@/components/ui/tooltip'
 import './globals.css'
 
 const graphik = localFont({
@@ -7,7 +9,7 @@ const graphik = localFont({
     { path: './fonts/Graphik-Regular.woff', weight: '400', style: 'normal' },
     { path: './fonts/Graphik-Medium.woff', weight: '500', style: 'normal' },
   ],
-  variable: '--font-graphik',
+  variable: '--font-sans',
   display: 'swap',
 })
 
@@ -18,8 +20,12 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
-    <html lang="en" className={`${graphik.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col">{children}</body>
+    <html lang="en" suppressHydrationWarning className={`${graphik.variable} h-full`}>
+      <body className="h-full overflow-hidden antialiased">
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+          <TooltipProvider>{children}</TooltipProvider>
+        </ThemeProvider>
+      </body>
     </html>
   )
 }

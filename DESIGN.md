@@ -59,10 +59,32 @@ flight time · max climb gradient demanded vs. aircraft limit · GO/NO-GO.
 
 All derived from data already in memory. No extra fetches.
 
+## UI
+
+Rerun-style four-region shell, all panels resizable and collapsible:
+
+| Region | Holds |
+|---|---|
+| Top bar | file open, airframe, panel toggles, theme |
+| Left | mission tree — vehicle, terrain, waypoints, legs, each with its clearance and a warning marker |
+| Centre | 3D viewport, orbit / chase |
+| Bottom | playback + clearance profile |
+| Right | inspector — properties of whatever is selected |
+
+Selection is shared: clicking a waypoint in the tree or in 3D selects it in both,
+pulls the camera toward it, and fills the inspector.
+
+The clearance profile is the view where a conflict is obvious at a glance;
+3D perspective hides vertical gaps. Its palette was validated with the dataviz
+validator against the real panel surfaces (#ffffff light, #171717 dark) — all
+six checks pass in both modes. The minimum-clearance band is deliberately
+NEUTRAL, not red: red is reserved for an actual breach, and a red band makes a
+mission that clears by 94m look alarming.
+
 ## Stack
 
-Next.js App Router · react-three-fiber + drei · React/`useState` · Tailwind ·
-Vercel.
+Next.js App Router · react-three-fiber + drei · shadcn (`base-mira` preset,
+Base UI) · next-themes · React/`useState` · Tailwind · Vercel.
 
 No geo libraries — `.plan` is `JSON.parse`, terrain-RGB decode is one line of
 arithmetic, the trajectory model is trig.

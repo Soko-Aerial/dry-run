@@ -13,6 +13,13 @@ import {
   type LegDemand,
 } from './trajectory'
 
+export type Selection =
+  | { kind: 'mission' }
+  | { kind: 'vehicle' }
+  | { kind: 'terrain' }
+  | { kind: 'waypoint'; index: number }
+  | { kind: 'leg'; index: number }
+
 export type Survey = {
   mission: RawMission
   waypoints: ResolvedWaypoint[]
@@ -27,6 +34,10 @@ export type Survey = {
   minClearanceLeg: number
   distanceM: number
   durationS: number
+  /** ground clearance at each waypoint, metres */
+  waypointClearance: number[]
+  /** worst clearance on each leg, metres */
+  legMinClearance: number[]
   verdict: 'GO' | 'NO-GO'
   issues: string[]
 }
@@ -72,6 +83,13 @@ export async function runSurvey(
       minClearanceLeg = p.legIndex
     }
     if (i > 0) distanceM += Math.hypot(p.e - traj[i - 1].e, p.n - traj[i - 1].n)
+    p.s = distanceM
+  }
+
+  const waypointClearance = waypoints.map((w) => w.alt - sampleAt(grid, w.lat, w.lon))
+  const legMinClearance = demands.map(() => Infinity)
+  for (const p of traj) {
+    if (p.clearance! < legMinClearance[p.legIndex]) legMinClearance[p.legIndex] = p.clearance!
   }
 
   const issues: string[] = []
@@ -101,6 +119,8 @@ export async function runSurvey(
     minClearanceLeg,
     distanceM,
     durationS: traj[traj.length - 1].t,
+    waypointClearance,
+    legMinClearance,
     verdict: minClearance < thresholdM || demands.some((d) => d.exceeded) ? 'NO-GO' : 'GO',
     issues,
   }

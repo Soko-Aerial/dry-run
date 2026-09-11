@@ -3,14 +3,20 @@
 import { useMemo, useRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls, Line } from '@react-three/drei'
+import { useTheme } from 'next-themes'
 import * as THREE from 'three'
 import { gridToMesh } from '@/lib/terrain'
 import { enuFactors } from '@/lib/mission'
-import type { Survey } from '@/lib/survey'
+import type { Selection, Survey } from '@/lib/survey'
 
 /** ENU metres -> three.js Y-up: x=east, y=alt, z=-north */
-const v3 = (p: { e: number; n: number; alt: number }) =>
-  new THREE.Vector3(p.e, p.alt, -p.n)
+const v3 = (p: { e: number; n: number; alt: number }) => new THREE.Vector3(p.e, p.alt, -p.n)
+
+// Same roles as the profile chart, so a leg reads the same colour in both views.
+const PALETTE = {
+  dark: { flight: '#3987e5', critical: '#d03b3b', aircraft: '#eda100', sky: '#9fb6cf', ground: '#1c2418' },
+  light: { flight: '#2a78d6', critical: '#d03b3b', aircraft: '#c98500', sky: '#cfe0f0', ground: '#6b6a5e' },
+}
 
 function Terrain({ survey }: { survey: Survey }) {
   const geom = useMemo(() => {
@@ -24,17 +30,12 @@ function Terrain({ survey }: { survey: Survey }) {
   }, [survey])
 
   return (
-    <mesh geometry={geom} receiveShadow>
+    <mesh geometry={geom}>
       <meshStandardMaterial vertexColors roughness={1} />
     </mesh>
   )
 }
 
-/**
- * Aircraft, its clearance drop-line, and the chase camera.
- * Playback advances a ref, not React state — 60fps re-renders are not a thing
- * we need. The parent gets a throttled tick for the readout.
- */
 function Aircraft({
   survey,
   threshold,
@@ -42,6 +43,8 @@ function Aircraft({
   speed,
   chase,
   home,
+  focus,
+  colors,
   headRef,
   onTick,
 }: {
@@ -51,6 +54,8 @@ function Aircraft({
   speed: number
   chase: boolean
   home: THREE.Vector3
+  focus: THREE.Vector3 | null
+  colors: (typeof PALETTE)['dark']
   headRef: React.RefObject<number>
   onTick: (i: number) => void
 }) {
@@ -77,33 +82,31 @@ function Aircraft({
     body.current.position.copy(pos)
     if (next !== p) body.current.lookAt(v3(next))
 
-    // clearance drop-line: the element that makes 3D communicate clearance,
-    // because perspective makes a vertical gap unjudgeable by eye.
+    // clearance drop-line: perspective makes a vertical gap unjudgeable by eye
     const g = drop.current!.geometry as THREE.BufferGeometry
     const arr = g.attributes.position.array as Float32Array
     arr[0] = pos.x; arr[1] = pos.y; arr[2] = pos.z
     arr[3] = pos.x; arr[4] = p.terrain!; arr[5] = pos.z
     g.attributes.position.needsUpdate = true
-    const mat = drop.current!.material as THREE.LineBasicMaterial
-    mat.color.set(p.clearance! < threshold ? '#ef4444' : '#22c55e')
+    ;(drop.current!.material as THREE.LineBasicMaterial).color.set(
+      p.clearance! < threshold ? colors.critical : '#22c55e',
+    )
 
     if (chase) {
-      // Behind and above, in the aircraft's own frame. Snap on engage — lerping
-      // in from wherever the orbit camera sat takes seconds the pilot will read
-      // as the control being broken.
       const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(body.current.quaternion)
-      const want = pos
-        .clone()
-        .addScaledVector(fwd, -180)
-        .add(new THREE.Vector3(0, 70, 0))
+      const want = pos.clone().addScaledVector(fwd, -180).add(new THREE.Vector3(0, 70, 0))
       camera.position.lerp(want, chaseEngaged.current ? 0.15 : 1)
       chaseEngaged.current = true
       camera.lookAt(pos)
     } else if (chaseEngaged.current) {
-      // Leaving chase must put the camera back where orbit left it, or the
-      // pilot lands 180m behind the aircraft with no idea where they are.
       camera.position.copy(home)
       chaseEngaged.current = false
+    } else if (focus) {
+      // selecting in the tree pulls the camera toward the thing selected
+      camera.position.lerp(
+        focus.clone().add(new THREE.Vector3(260, 190, 260)),
+        0.06,
+      )
     }
 
     if (performance.now() - lastTick.current > 100) {
@@ -118,15 +121,12 @@ function Aircraft({
         {/* ponytail: cone, exaggerated ~20m for visibility at survey scale */}
         <mesh rotation={[Math.PI / 2, 0, 0]}>
           <coneGeometry args={[7, 22, 8]} />
-          <meshStandardMaterial color="#fbbf24" />
+          <meshStandardMaterial color={colors.aircraft} />
         </mesh>
       </group>
       <line ref={drop as never}>
         <bufferGeometry>
-          <bufferAttribute
-            attach="attributes-position"
-            args={[new Float32Array(6), 3]}
-          />
+          <bufferAttribute attach="attributes-position" args={[new Float32Array(6), 3]} />
         </bufferGeometry>
         <lineBasicMaterial color="#22c55e" />
       </line>
@@ -142,6 +142,8 @@ export default function Scene({
   chase,
   headRef,
   onTick,
+  selection,
+  onSelect,
 }: {
   survey: Survey
   threshold: number
@@ -150,14 +152,17 @@ export default function Scene({
   chase: boolean
   headRef: React.RefObject<number>
   onTick: (i: number) => void
+  selection: Selection | null
+  onSelect: (s: Selection) => void
 }) {
+  const { resolvedTheme } = useTheme()
+  const colors = PALETTE[resolvedTheme === 'light' ? 'light' : 'dark']
+
   const path = useMemo(
     () => survey.traj.filter((_, i) => i % 5 === 0).map((p) => v3(p).toArray()),
     [survey],
   )
 
-  // Frame the mission, not the tile grid — the grid is padded far wider than
-  // the flight and a fixed camera offset leaves short missions invisible.
   const { center, dist, marks } = useMemo(() => {
     const es = survey.traj.map((p) => p.e)
     const ns = survey.traj.map((p) => p.n)
@@ -174,9 +179,9 @@ export default function Scene({
         (Math.min(...alts) + Math.max(...alts)) / 2,
         -(Math.min(...ns) + Math.max(...ns)) / 2,
       ),
-      // floor it: a 200m mission framed tightly shows a featureless slope and
-      // no sense of the terrain it sits in
-      dist: Math.max(extent * 1.4 + 300, 1500),
+      // Frame the mission, with a floor so a very short one still shows the
+      // terrain it sits in. Too generous and the tile grid dominates instead.
+      dist: Math.max(extent * 1.0 + 250, 900),
       marks: survey.waypoints.map((w) =>
         v3({
           e: (w.lon - survey.origin.lon) * f.lon,
@@ -192,6 +197,18 @@ export default function Scene({
     [center, dist],
   )
 
+  const focus = useMemo(() => {
+    if (!selection) return null
+    if (selection.kind === 'waypoint') return marks[selection.index] ?? null
+    if (selection.kind === 'leg') {
+      const p = survey.traj.find((t) => t.legIndex === selection.index)
+      return p ? v3(p) : null
+    }
+    return null
+  }, [selection, marks, survey])
+
+  const selectedWp = selection?.kind === 'waypoint' ? selection.index : -1
+
   return (
     <Canvas
       // ponytail: AA off and DPR capped at 1.5. On a 4K display the default
@@ -199,20 +216,17 @@ export default function Scene({
       // that gains nothing from it.
       dpr={[1, 1.5]}
       gl={{ antialias: false, powerPreference: 'high-performance' }}
-      camera={{
-        position: [homePos.x, homePos.y, homePos.z],
-        near: 1,
-        far: 200000,
-      }}
+      camera={{ position: [homePos.x, homePos.y, homePos.z], near: 1, far: 200000 }}
     >
-      {/* low fill + one strong raking light: relief has to read as shape */}
-      <hemisphereLight intensity={0.35} groundColor="#1c2418" color="#9fb6cf" />
-      <directionalLight position={[-1.0, 0.9, 0.6].map((v) => v * 8000) as never} intensity={1.5} />
+      <hemisphereLight intensity={0.35} groundColor={colors.ground} color={colors.sky} />
+      <directionalLight position={[-8000, 7200, 4800]} intensity={1.5} />
       <Terrain survey={survey} />
-      <Line points={path as [number, number, number][]} color="#38bdf8" lineWidth={2} />
+      <Line points={path as [number, number, number][]} color={colors.flight} lineWidth={2} />
       <Aircraft
         survey={survey}
         home={homePos}
+        focus={focus}
+        colors={colors}
         threshold={threshold}
         playing={playing}
         speed={speed}
@@ -221,12 +235,27 @@ export default function Scene({
         onTick={onTick}
       />
       {marks.map((m, i) => (
-        <mesh key={i} position={m}>
-          <sphereGeometry args={[Math.max(6, dist * 0.006), 12, 12]} />
-          <meshStandardMaterial color="#38bdf8" emissive="#0c4a6e" />
+        <mesh
+          key={i}
+          position={m}
+          onClick={(e) => {
+            e.stopPropagation()
+            onSelect({ kind: 'waypoint', index: i })
+          }}
+        >
+          <sphereGeometry
+            args={[Math.max(6, dist * 0.006) * (i === selectedWp ? 1.8 : 1), 12, 12]}
+          />
+          <meshStandardMaterial
+            color={
+              survey.waypointClearance[i] < threshold ? colors.critical : colors.flight
+            }
+            emissive={i === selectedWp ? colors.flight : '#000000'}
+            emissiveIntensity={i === selectedWp ? 0.6 : 0}
+          />
         </mesh>
       ))}
-      {!chase && <OrbitControls target={center} maxDistance={120000} />}
+      {!chase && <OrbitControls target={center} maxDistance={120000} makeDefault />}
     </Canvas>
   )
 }

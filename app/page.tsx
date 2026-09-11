@@ -1,272 +1,255 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { Fragment, useCallback, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
-import { PROFILES, turnRadiusFor, type VehicleProfile } from '@/lib/trajectory'
-import { runSurvey, type Survey } from '@/lib/survey'
+import { Upload, PanelLeft, PanelRight, PanelBottom } from 'lucide-react'
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from '@/components/ui/resizable'
+import { Button } from '@/components/ui/button'
+import { ButtonGroup, ButtonGroupSeparator } from '@/components/ui/button-group'
+import { ThemeToggle } from '@/components/theme-toggle'
+import { MissionTree } from '@/components/mission-tree'
+import { Inspector } from '@/components/inspector'
+import { Timeline } from '@/components/timeline'
+import { PROFILES, type VehicleProfile } from '@/lib/trajectory'
+import { runSurvey, type Selection, type Survey } from '@/lib/survey'
+import { cn } from '@/lib/utils'
 
 const Scene = dynamic(() => import('@/components/Scene'), { ssr: false })
 
-const m = (v: number) => `${v.toFixed(0)} m`
+function PanelTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="border-border/60 text-muted-foreground flex h-7 shrink-0 items-center border-b px-2 text-[11px] font-medium tracking-wide uppercase">
+      {children}
+    </div>
+  )
+}
 
 export default function Page() {
   const [kind, setKind] = useState<'fixedwing' | 'multirotor'>('fixedwing')
   const [profile, setProfile] = useState<VehicleProfile>(PROFILES.fixedwing)
   const [threshold, setThreshold] = useState(30)
   const [survey, setSurvey] = useState<Survey | null>(null)
+  const [fileName, setFileName] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [selection, setSelection] = useState<Selection | null>({ kind: 'mission' })
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeed] = useState(4)
-  const [chase, setChase] = useState(false)
   const [head, setHead] = useState(0)
+  const [showLeft, setShowLeft] = useState(true)
+  const [showRight, setShowRight] = useState(true)
+  const [showBottom, setShowBottom] = useState(true)
+  const [chase, setChase] = useState(false)
   const headRef = useRef(0)
   const textRef = useRef<string | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
 
-  const pick = (k: 'fixedwing' | 'multirotor') => {
-    setKind(k)
-    setProfile(PROFILES[k])
-  }
-
-  async function run(text: string) {
-    textRef.current = text
-    setBusy(true)
-    setError(null)
-    try {
-      const s = await runSurvey(text, profile, threshold)
-      headRef.current = 0
-      setHead(0)
-      setSurvey(s)
-    } catch (e) {
-      setSurvey(null)
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const cur = survey?.traj[head]
+  const run = useCallback(
+    async (text: string, p = profile, t = threshold) => {
+      textRef.current = text
+      setBusy(true)
+      setError(null)
+      try {
+        const s = await runSurvey(text, p, t)
+        headRef.current = 0
+        setHead(0)
+        setSurvey(s)
+        setSelection({ kind: 'mission' })
+      } catch (e) {
+        setSurvey(null)
+        setError(e instanceof Error ? e.message : String(e))
+      } finally {
+        setBusy(false)
+      }
+    },
+    [profile, threshold],
+  )
 
   return (
-    <div className="flex h-screen bg-neutral-950 text-neutral-100">
-      <aside className="w-96 shrink-0 overflow-y-auto border-r border-neutral-800 p-5 space-y-5 text-sm">
-        <label className="block">
-          <span className="text-neutral-400 text-xs">Mission file (.waypoints / .plan)</span>
-          <input
-            type="file"
-            accept=".waypoints,.txt,.plan,.json"
-            onChange={async (e) => {
-              const f = e.target.files?.[0]
-              if (f) run(await f.text())
-            }}
-            className="mt-1 block w-full text-xs file:mr-3 file:rounded file:border-0 file:bg-neutral-800 file:px-3 file:py-1.5 file:text-neutral-100"
-          />
-        </label>
+    <div className="bg-background flex h-full flex-col">
+      {/* top bar */}
+      <header className="border-border/60 flex h-9 shrink-0 items-center gap-2 border-b px-2">
+        <span className="px-1 text-xs font-medium">dry run</span>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".waypoints,.txt,.plan,.json"
+          className="hidden"
+          onChange={async (e) => {
+            const f = e.target.files?.[0]
+            if (!f) return
+            setFileName(f.name)
+            run(await f.text())
+          }}
+        />
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-6 gap-1.5 px-2 text-xs"
+          onClick={() => fileRef.current?.click()}
+        >
+          <Upload className="size-3" />
+          Open mission
+        </Button>
+        {fileName && <span className="text-muted-foreground text-xs">{fileName}</span>}
 
-        <div className="space-y-2">
-          <div className="flex gap-2">
-            {(['fixedwing', 'multirotor'] as const).map((k) => (
-              <button
-                key={k}
-                onClick={() => pick(k)}
-                className={`flex-1 rounded px-2 py-1.5 text-xs ${kind === k ? 'bg-sky-600' : 'bg-neutral-800'}`}
-              >
-                {k === 'fixedwing' ? 'Fixed-wing' : 'Multirotor'}
-              </button>
-            ))}
-          </div>
-          {(
-            [
-              ['cruiseMs', 'Cruise speed', 'm/s'],
-              ['maxBankDeg', 'Max bank', '°'],
-              ['turnRadiusM', 'Turn radius', 'm'],
-              ['maxClimbMs', 'Max climb', 'm/s'],
-              ['maxDescentMs', 'Max descent', 'm/s'],
-            ] as const
-          ).map(([key, label, unit]) => (
-            <label key={key} className="flex items-center justify-between gap-2">
-              <span className="text-neutral-400 text-xs">
-                {label} <span className="text-neutral-600">{unit}</span>
-              </span>
-              <input
-                type="number"
-                value={Math.round(profile[key] * 10) / 10}
-                onChange={(e) => {
-                  const v = Number(e.target.value)
-                  const next = { ...profile, [key]: v }
-                  // radius follows speed and bank (r = v^2/g.tan(phi)) unless
-                  // the pilot overrides it directly
-                  if (key === 'cruiseMs' || key === 'maxBankDeg') {
-                    next.turnRadiusM = turnRadiusFor(next.cruiseMs, next.maxBankDeg)
-                  }
-                  setProfile(next)
-                }}
-                className="w-20 rounded bg-neutral-800 px-2 py-1 text-right text-xs"
-              />
-            </label>
+        <div className="bg-border mx-1 h-4 w-px" />
+        <div className="flex gap-1">
+          {(['fixedwing', 'multirotor'] as const).map((k) => (
+            <Button
+              key={k}
+              size="sm"
+              variant={kind === k ? 'secondary' : 'ghost'}
+              className="h-6 px-2 text-xs"
+              onClick={() => {
+                setKind(k)
+                setProfile(PROFILES[k])
+                if (textRef.current) run(textRef.current, PROFILES[k])
+              }}
+            >
+              {k === 'fixedwing' ? 'Fixed-wing' : 'Multirotor'}
+            </Button>
           ))}
-          <label className="flex items-center justify-between gap-2">
-            <span className="text-neutral-400 text-xs">
-              Min clearance <span className="text-neutral-600">m</span>
-            </span>
-            <input
-              type="number"
-              value={threshold}
-              onChange={(e) => setThreshold(Number(e.target.value))}
-              className="w-20 rounded bg-neutral-800 px-2 py-1 text-right text-xs"
-            />
-          </label>
-          <button
-            disabled={!textRef.current || busy}
-            onClick={() => textRef.current && run(textRef.current)}
-            className="w-full rounded bg-neutral-800 px-2 py-1.5 text-xs disabled:opacity-40"
-          >
-            {busy ? 'Sampling terrain…' : 'Re-run survey'}
-          </button>
         </div>
 
-        {error && <p className="rounded bg-red-950 p-2 text-xs text-red-300">{error}</p>}
+        {error && <span className="text-destructive truncate text-xs">{error}</span>}
 
-        {survey && (
+        <div className="ml-auto flex items-center gap-1.5">
+          <ButtonGroup>
+            {(
+              [
+                [PanelLeft, showLeft, setShowLeft, 'Toggle mission panel'],
+                [PanelBottom, showBottom, setShowBottom, 'Toggle timeline'],
+                [PanelRight, showRight, setShowRight, 'Toggle inspector'],
+              ] as const
+            ).map(([Icon, on, set, label], i) => (
+              <Fragment key={label}>
+                {i > 0 && <ButtonGroupSeparator />}
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  aria-label={label}
+                  aria-pressed={on}
+                  className="size-7"
+                  onClick={() => set(!on)}
+                >
+                  <Icon className={cn('size-3.5', !on && 'text-muted-foreground/50')} />
+                </Button>
+              </Fragment>
+            ))}
+          </ButtonGroup>
+          <ThemeToggle />
+        </div>
+      </header>
+
+      <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
+        {showLeft && (
           <>
-            <div
-              className={`rounded p-3 ${survey.verdict === 'GO' ? 'bg-green-950' : 'bg-red-950'}`}
-            >
-              <div className="text-xl font-medium">
-                {survey.verdict}
-                <span className="ml-2 text-xs font-normal opacity-70">
-                  {survey.verdict === 'GO' ? 'no terrain conflict' : `${survey.issues.length} issue(s)`}
-                </span>
-              </div>
-              <ul className="mt-2 space-y-1 text-xs opacity-90">
-                {survey.issues.map((i, n) => (
-                  <li key={n}>• {i}</li>
-                ))}
-              </ul>
-            </div>
-
-            {survey.grid.suspect && (
-              <p className="rounded bg-red-950 p-2 text-xs text-red-300">{survey.grid.suspect}</p>
-            )}
-
-            {survey.grid.synthetic && (
-              <p className="rounded bg-amber-950 p-2 text-xs text-amber-300">
-                Synthetic terrain — no Mapbox token configured. Heights are fake.
-              </p>
-            )}
-
-            <dl className="space-y-1 text-xs">
-              {[
-                ['Highest terrain (±550m of route)', `${m(survey.highestTerrain)} AMSL (${m(survey.highestTerrain - survey.launchAmsl)} above launch)`],
-                ['Lowest terrain', `${m(survey.lowestTerrain)} AMSL`],
-                ['Launch elevation', `${m(survey.launchAmsl)} AMSL`],
-                ['Min clearance', `${m(survey.minClearance)} on leg ${survey.minClearanceLeg + 1}`],
-                ['Distance', `${(survey.distanceM / 1000).toFixed(2)} km`],
-                ['Est. flight time', `${Math.floor(survey.durationS / 60)}m ${Math.round(survey.durationS % 60)}s`],
-                ['Waypoints', `${survey.waypoints.length} (${survey.mission.source})`],
-              ].map(([k, v]) => (
-                <div key={k} className="flex justify-between gap-2">
-                  <dt className="text-neutral-400">{k}</dt>
-                  <dd className="text-right">{v}</dd>
+            <ResizablePanel defaultSize="16" minSize="10" maxSize="30">
+              <div className="flex h-full flex-col">
+                <PanelTitle>Mission</PanelTitle>
+                <div className="min-h-0 flex-1">
+                  <MissionTree
+                    survey={survey}
+                    fileName={fileName}
+                    selection={selection}
+                    onSelect={setSelection}
+                    threshold={threshold}
+                  />
                 </div>
-              ))}
-            </dl>
-
-            <div>
-              <h2 className="mb-1 text-xs text-neutral-400">Waypoints</h2>
-              <table className="w-full text-xs tabular-nums">
-                <thead className="text-neutral-500">
-                  <tr>
-                    <th className="text-left font-normal">#</th>
-                    <th className="text-right font-normal">AMSL</th>
-                    <th className="text-right font-normal">launch</th>
-                    <th className="text-right font-normal">frame</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {survey.waypoints.map((w, i) => (
-                    <tr key={i} className="border-t border-neutral-900">
-                      <td>{i + 1}</td>
-                      <td className="text-right">{w.alt.toFixed(0)}</td>
-                      <td className="text-right">{(w.alt - survey.launchAmsl).toFixed(0)}</td>
-                      <td className="text-right text-neutral-500">{w.frame}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+              </div>
+            </ResizablePanel>
+            <ResizableHandle />
           </>
         )}
-      </aside>
 
-      <main className="relative flex-1">
-        {survey ? (
+        <ResizablePanel defaultSize="60" minSize="30">
+          <ResizablePanelGroup orientation="vertical">
+            <ResizablePanel defaultSize={showBottom ? "66" : "100"} minSize="25">
+              <div className="relative h-full">
+                {survey ? (
+                  <>
+                    <Scene
+                      survey={survey}
+                      threshold={threshold}
+                      playing={playing}
+                      speed={speed}
+                      chase={chase}
+                      headRef={headRef}
+                      onTick={setHead}
+                      selection={selection}
+                      onSelect={setSelection}
+                    />
+                    <div className="bg-card/80 border-border/60 absolute top-2 right-2 flex gap-0.5 rounded-md border p-0.5 backdrop-blur">
+                      {(['Orbit', 'Chase'] as const).map((m) => (
+                        <Button
+                          key={m}
+                          size="sm"
+                          variant={chase === (m === 'Chase') ? 'secondary' : 'ghost'}
+                          className="h-6 px-2 text-xs"
+                          onClick={() => setChase(m === 'Chase')}
+                        >
+                          {m}
+                        </Button>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-muted-foreground grid h-full place-items-center text-xs">
+                    {busy ? 'Sampling terrain…' : 'Open a mission file to begin'}
+                  </div>
+                )}
+              </div>
+            </ResizablePanel>
+            {showBottom && (
+              <>
+                <ResizableHandle />
+                <ResizablePanel defaultSize="34" minSize="12">
+                  <Timeline
+                    survey={survey}
+                    threshold={threshold}
+                    head={head}
+                    setHead={setHead}
+                    headRef={headRef}
+                    playing={playing}
+                    setPlaying={setPlaying}
+                    speed={speed}
+                    setSpeed={setSpeed}
+                    onSelect={setSelection}
+                  />
+                </ResizablePanel>
+              </>
+            )}
+          </ResizablePanelGroup>
+        </ResizablePanel>
+
+        {showRight && (
           <>
-            <Scene
-              survey={survey}
-              threshold={threshold}
-              playing={playing}
-              speed={speed}
-              chase={chase}
-              headRef={headRef}
-              onTick={setHead}
-            />
-            <div className="absolute inset-x-0 bottom-0 flex items-center gap-3 bg-neutral-900/90 p-3 text-xs backdrop-blur">
-              <button
-                onClick={() => {
-                  // restart if parked at the end
-                  if (headRef.current >= survey.traj.length - 1) {
-                    headRef.current = 0
-                    setHead(0)
-                  }
-                  setPlaying((p) => !p)
-                }}
-                className="rounded bg-sky-600 px-3 py-1.5"
-              >
-                {playing ? 'Pause' : 'Play'}
-              </button>
-              <input
-                type="range"
-                min={0}
-                max={survey.traj.length - 1}
-                value={head}
-                onChange={(e) => {
-                  headRef.current = Number(e.target.value)
-                  setHead(Number(e.target.value))
-                }}
-                className="flex-1"
-              />
-              <select
-                value={speed}
-                onChange={(e) => setSpeed(Number(e.target.value))}
-                className="rounded bg-neutral-800 px-2 py-1"
-              >
-                {[1, 2, 4, 8, 16].map((s) => (
-                  <option key={s} value={s}>
-                    {s}×
-                  </option>
-                ))}
-              </select>
-              <label className="flex items-center gap-1">
-                <input type="checkbox" checked={chase} onChange={(e) => setChase(e.target.checked)} />
-                Chase
-              </label>
-              {cur && (
-                <span className="tabular-nums text-neutral-300">
-                  t {cur.t.toFixed(0)}s · {m(cur.alt)} AMSL ·{' '}
-                  <span className={cur.clearance! < threshold ? 'text-red-400' : 'text-green-400'}>
-                    {m(cur.clearance!)} AGL
-                  </span>
-                </span>
-              )}
-            </div>
+            <ResizableHandle />
+            <ResizablePanel defaultSize="24" minSize="14" maxSize="40">
+              <div className="flex h-full flex-col">
+                <PanelTitle>Selection</PanelTitle>
+                <div className="min-h-0 flex-1">
+                  <Inspector
+                    survey={survey}
+                    selection={selection}
+                    profile={profile}
+                    setProfile={setProfile}
+                    threshold={threshold}
+                    setThreshold={setThreshold}
+                    busy={busy}
+                    onRerun={() => textRef.current && run(textRef.current)}
+                  />
+                </div>
+              </div>
+            </ResizablePanel>
           </>
-        ) : (
-          <div className="grid h-full place-items-center text-sm text-neutral-600">
-            Load a mission file to begin
-          </div>
         )}
-      </main>
+      </ResizablePanelGroup>
     </div>
   )
 }

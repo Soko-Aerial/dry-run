@@ -61,6 +61,8 @@ export type TrajPoint = {
   /** filled by annotateClearance */
   terrain?: number
   clearance?: number
+  /** metres along the flown path, filled by runSurvey */
+  s?: number
 }
 
 type PathPoint = { e: number; n: number; targetAlt: number; legIndex: number }
