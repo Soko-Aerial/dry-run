@@ -141,3 +141,59 @@ export function bboxOf(pts: { lat: number; lon: number }[], padDeg = 0.004): Bbo
     maxLon: Math.max(...lons) + padDeg,
   }
 }
+
+/**
+ * Terrain mesh, downsampled to a vertex budget. Deliberately coarser than the
+ * clearance check — see DESIGN.md #10. If mesh and verdict disagree, the
+ * verdict is right.
+ */
+export function gridToMesh(
+  grid: Grid,
+  origin: { lat: number; lon: number },
+  maxVerts = 250_000,
+) {
+  const step = Math.max(1, Math.ceil(Math.sqrt((grid.width * grid.height) / maxVerts)))
+  const cols = Math.floor(grid.width / step)
+  const rows = Math.floor(grid.height / step)
+  const fLat = 110574
+  const fLon = 111320 * Math.cos((origin.lat * Math.PI) / 180)
+
+  const positions = new Float32Array(cols * rows * 3)
+  const colors = new Float32Array(cols * rows * 3)
+  const { min, max } = gridStats(grid)
+  const span = Math.max(1, max - min)
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const gx = c * step
+      const gy = r * step
+      const { lat, lon } = pxToLatLon(grid.px0 + gx, grid.py0 + gy, grid.z, grid.tileSize)
+      const h = grid.data[gy * grid.width + gx]
+      const i = (r * cols + c) * 3
+      // three.js is Y-up: x=east, y=alt, z=-north
+      positions[i] = (lon - origin.lon) * fLon
+      positions[i + 1] = h
+      positions[i + 2] = -(lat - origin.lat) * fLat
+
+      const t = (h - min) / span
+      colors[i] = 0.25 + t * 0.55
+      colors[i + 1] = 0.42 + t * 0.25
+      colors[i + 2] = 0.24 + t * 0.45
+    }
+  }
+
+  const indices = new Uint32Array((cols - 1) * (rows - 1) * 6)
+  let k = 0
+  for (let r = 0; r < rows - 1; r++) {
+    for (let c = 0; c < cols - 1; c++) {
+      const a = r * cols + c
+      indices[k++] = a
+      indices[k++] = a + cols
+      indices[k++] = a + 1
+      indices[k++] = a + 1
+      indices[k++] = a + cols
+      indices[k++] = a + cols + 1
+    }
+  }
+  return { positions, colors, indices, cols, rows, step }
+}

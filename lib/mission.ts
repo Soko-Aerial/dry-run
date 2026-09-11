@@ -176,15 +176,18 @@ export function toAmsl(
  * ponytail: equirectangular. ~0.1% over a survey-sized area; swap for a proper
  * projection only if missions ever span tens of km.
  */
+export function enuFactors(originLat: number) {
+  return { lat: 110574, lon: 111320 * Math.cos((originLat * Math.PI) / 180) }
+}
+
 export function toEnu(
   wps: { lat: number; lon: number; alt: number }[],
   origin: { lat: number; lon: number },
 ) {
-  const mPerDegLat = 110574
-  const mPerDegLon = 111320 * Math.cos((origin.lat * Math.PI) / 180)
+  const f = enuFactors(origin.lat)
   return wps.map((w) => ({
-    e: (w.lon - origin.lon) * mPerDegLon,
-    n: (w.lat - origin.lat) * mPerDegLat,
+    e: (w.lon - origin.lon) * f.lon,
+    n: (w.lat - origin.lat) * f.lat,
     alt: w.alt,
   }))
 }
