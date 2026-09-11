@@ -123,12 +123,14 @@
     --viz-flight: #2a78d6;
     --viz-terrain: #dedbd4;
     --viz-critical: #d03b3b;
+    --viz-selected: #c98500;
 }
 
 .dark {
     --viz-flight: #3987e5;
     --viz-terrain: #3d3d38;
     --viz-critical: #d03b3b;
+    --viz-selected: #c98500;
 }
 
 @layer base {

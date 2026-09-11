@@ -14,7 +14,7 @@ const v3 = (p: { e: number; n: number; alt: number }) => new THREE.Vector3(p.e, 
 
 // Same roles as the profile chart, so a leg reads the same colour in both views.
 const PALETTE = {
-  dark: { flight: '#3987e5', critical: '#d03b3b', aircraft: '#eda100', sky: '#9fb6cf', ground: '#1c2418' },
+  dark: { flight: '#3987e5', critical: '#d03b3b', aircraft: '#c98500', sky: '#9fb6cf', ground: '#1c2418' },
   light: { flight: '#2a78d6', critical: '#d03b3b', aircraft: '#c98500', sky: '#cfe0f0', ground: '#6b6a5e' },
 }
 

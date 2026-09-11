@@ -43,12 +43,14 @@ function ClearanceProfile({
   survey,
   threshold,
   head,
+  selectedLeg,
   onScrub,
   onSelectLeg,
 }: {
   survey: Survey
   threshold: number
   head: number
+  selectedLeg: number
   onScrub: (i: number) => void
   onSelectLeg: (i: number) => void
 }) {
@@ -112,6 +114,11 @@ function ClearanceProfile({
     }
   }
   if (run.length > 1) bad.push('M ' + run.join(' L '))
+
+  // selected leg, same amber as the 3D highlight so the two views agree
+  const legRun = pts.filter((p) => p.legIndex === selectedLeg)
+  const legPath =
+    legRun.length > 1 ? 'M ' + legRun.map((p) => `${x(p.s!)} ${y(p.alt)}`).join(' L ') : null
 
   const worst = traj.reduce((a, b) => (b.clearance! < a.clearance! ? b : a))
   const cur = traj[Math.min(head, traj.length - 1)]
@@ -224,6 +231,16 @@ function ClearanceProfile({
           <path key={i} d={d} fill="none" stroke="var(--viz-critical)" strokeWidth={3} />
         ))}
 
+        {legPath && (
+          <path
+            d={legPath}
+            fill="none"
+            stroke="var(--viz-selected)"
+            strokeWidth={3}
+            strokeDasharray="4 3"
+          />
+        )}
+
         {/* worst point: marker + label, never colour alone. The label itself is
             HTML below, so it can use the same icon as the rest of the app. */}
         {worst.clearance! < threshold && (
@@ -320,6 +337,7 @@ export function Timeline({
   setPlaying,
   speed,
   setSpeed,
+  selection,
   onSelect,
 }: {
   survey: Survey | null
@@ -331,6 +349,7 @@ export function Timeline({
   setPlaying: (v: boolean) => void
   speed: number
   setSpeed: (v: number) => void
+  selection: Selection | null
   onSelect: (s: Selection) => void
 }) {
   const scrub = useCallback(
@@ -404,6 +423,7 @@ export function Timeline({
           survey={survey}
           threshold={threshold}
           head={head}
+          selectedLeg={selection?.kind === 'leg' ? selection.index : -1}
           onScrub={scrub}
           onSelectLeg={(i) => onSelect({ kind: 'leg', index: i })}
         />

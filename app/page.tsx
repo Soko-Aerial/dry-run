@@ -231,6 +231,7 @@ export default function Page() {
                     setPlaying={setPlaying}
                     speed={speed}
                     setSpeed={setSpeed}
+                    selection={selection}
                     onSelect={setSelection}
                   />
                 </ResizablePanel>
