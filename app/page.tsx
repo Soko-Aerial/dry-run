@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useCallback, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { Upload, PanelLeft, PanelRight, PanelBottom } from 'lucide-react'
 import {
@@ -47,6 +47,13 @@ export default function Page() {
   const headRef = useRef(0)
   const textRef = useRef<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  // Playback clamps at the last sample but nothing cleared the flag, so the
+  // button showed Pause on a stopped flight and one click both rewound and
+  // paused it.
+  useEffect(() => {
+    if (playing && survey && head >= survey.traj.length - 1) setPlaying(false)
+  }, [playing, head, survey])
 
   const run = useCallback(
     async (text: string, p = profile, t = threshold) => {

@@ -224,19 +224,10 @@ function ClearanceProfile({
           <path key={i} d={d} fill="none" stroke="var(--viz-critical)" strokeWidth={3} />
         ))}
 
-        {/* worst point: marker + label, never colour alone */}
+        {/* worst point: marker + label, never colour alone. The label itself is
+            HTML below, so it can use the same icon as the rest of the app. */}
         {worst.clearance! < threshold && (
-          <g>
-            <circle cx={x(worst.s!)} cy={y(worst.alt)} r={4} fill="var(--viz-critical)" />
-            <text
-              x={x(worst.s!) + (x(worst.s!) > PAD.left + iw * 0.7 ? -7 : 7)}
-              y={y(worst.alt) - 5}
-              textAnchor={x(worst.s!) > PAD.left + iw * 0.7 ? 'end' : 'start'}
-              className="fill-foreground text-[10px] font-medium tabular-nums"
-            >
-              ▲ {worst.clearance!.toFixed(0)} m · leg {worst.legIndex + 1}
-            </text>
-          </g>
+          <circle cx={x(worst.s!)} cy={y(worst.alt)} r={4} fill="var(--viz-critical)" />
         )}
 
         {/* direct labels instead of a legend box */}
@@ -283,9 +274,26 @@ function ClearanceProfile({
         />
       </svg>
 
+      {worst.clearance! < threshold && (
+        <div
+          className="text-foreground pointer-events-none absolute flex items-center gap-1 whitespace-nowrap text-[10px] font-medium tabular-nums"
+          style={{
+            left: x(worst.s!),
+            top: y(worst.alt) - 20,
+            transform:
+              x(worst.s!) > PAD.left + iw * 0.7
+                ? 'translateX(calc(-100% - 8px))'
+                : 'translateX(8px)',
+          }}
+        >
+          <TriangleAlert className="text-destructive size-3" />
+          {worst.clearance!.toFixed(0)} m · leg {worst.legIndex + 1}
+        </div>
+      )}
+
       {hoverPt && (
         <div
-          className="bg-popover text-popover-foreground border-border pointer-events-none absolute top-2 rounded-sm border px-2 py-1 text-[11px] tabular-nums shadow-sm"
+          className="bg-popover text-popover-foreground border-border pointer-events-none absolute top-2 rounded-sm border px-2 py-1 text-[11px] whitespace-nowrap tabular-nums shadow-sm"
           style={{ left: Math.min(w - 150, Math.max(0, x(hoverPt.s!) + 8)) }}
         >
           <div>{(hoverPt.s! / 1000).toFixed(2)} km · leg {hoverPt.legIndex + 1}</div>
