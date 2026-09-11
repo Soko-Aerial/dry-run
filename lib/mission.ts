@@ -35,8 +35,21 @@ const FRAMES: Record<number, AltFrame> = {
   11: 'terrain', // GLOBAL_TERRAIN_ALT_INT
 }
 
-// MAV_CMD values that carry a position we should fly to.
-const NAV_COMMANDS = new Set([16, 17, 18, 19, 21, 22, 82])
+// MAV_CMD values that carry a position we should fly to. Anything not here is
+// a DO_/CONDITION_ command with no coordinate. Too narrow a set silently drops
+// waypoints — VTOL takeoff/land (84/85) are an easy miss.
+const NAV_COMMANDS = new Set([
+  16, // WAYPOINT
+  17, // LOITER_UNLIM
+  18, // LOITER_TURNS
+  19, // LOITER_TIME
+  21, // LAND
+  22, // TAKEOFF
+  31, // LOITER_TO_ALT
+  82, // SPLINE_WAYPOINT
+  84, // VTOL_TAKEOFF
+  85, // VTOL_LAND
+])
 
 /** Sniff the format. .plan is JSON, .waypoints starts with a WPL header. */
 export function parseMission(text: string): RawMission {
@@ -95,7 +108,7 @@ export function parsePlan(text: string): RawMission {
   const doc = JSON.parse(text)
   const mission = doc.mission ?? doc
   const hp = mission.plannedHomePosition
-  const home = Array.isArray(hp) ? { lat: hp[0], lon: hp[1], alt: hp[2] } : null
+  const home = Array.isArray(hp) ? { lat: hp[0], lon: hp[1], alt: hp[2] ?? 0 } : null
 
   const waypoints: RawWaypoint[] = []
 
@@ -117,9 +130,15 @@ export function parsePlan(text: string): RawMission {
         continue
       }
       const command = Number(item.command)
+      if (!NAV_COMMANDS.has(command)) continue
+      // Two shapes in the wild: older files carry `coordinate`, newer ones put
+      // lat/lon/alt in MAVLink params 5-7. Reading only one silently drops
+      // every waypoint and reports an empty mission.
+      const coord = item.coordinate as number[] | undefined
       const params = item.params as number[] | undefined
-      if (!NAV_COMMANDS.has(command) || !params) continue
-      const [lat, lon, alt] = [params[4], params[5], params[6]]
+      const [lat, lon, alt] = Array.isArray(coord) && coord.length >= 3
+        ? [coord[0], coord[1], coord[2]]
+        : [params?.[4], params?.[5], params?.[6]]
       if (lat == null || lon == null || (lat === 0 && lon === 0)) continue
       waypoints.push({
         lat,
