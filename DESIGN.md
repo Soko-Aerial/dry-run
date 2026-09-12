@@ -5,9 +5,10 @@ terrain, and gets a verdict on whether the terrain will be a problem.
 
 ## Scope
 
-**v1** — terrain only. Import, 3D dry run, clearance verdict, survey panel.
+**v1** — terrain only. Import, 3D dry run, clearance verdict, survey panel,
+edit the imported mission (drop, delete, re-altitude a waypoint).
 **v2** — obstacles (OSM masts/towers/buildings), airspace, 2D profile chart,
-waypoint drawing, FPV camera, camera-footprint/coverage.
+drawing a mission from nothing, FPV camera, camera-footprint/coverage.
 
 The v1 verdict says **"no terrain conflict"**, never "safe". ~10 m ground
 sampling sees hills. It does not see power lines, masts, cranes or treelines.
@@ -102,6 +103,7 @@ test: climb clamped over limit, corner cut inside waypoint by turn radius,
 leg under a ridge reports negative clearance. Three asserts, no framework.
 
 | 16 | PNG decoded by hand, never via canvas | `createImageBitmap`/`drawImage`/`getImageData` is a rendering path and rounds. Observed losing one count in the red channel on Windows Chrome — a 6553.6 m elevation error that still looked like terrain. `DecompressionStream` makes an exact decoder ~70 lines with no dependency. |
+| 18 | Editing works on the parsed mission, not the file text | A dropped waypoint inherits the altitude and frame of the one it follows, then re-runs the same pipeline. Re-serialising the file only to parse it again would be a round trip with nothing at the far end — and export is not a feature yet, so what you edit here never leaves the tool. |
 | 17 | Unknown commands carrying a position produce a warning | Silently dropping a waypoint yields a confident verdict on a path that isn't the mission. |
 
 ## Open

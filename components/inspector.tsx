@@ -109,6 +109,8 @@ export function Inspector({
   onClearModel,
   survey,
   selection,
+  onRemoveWaypoint,
+  onSetWaypointAlt,
   profile,
   setProfile,
   threshold,
@@ -126,6 +128,8 @@ export function Inspector({
   onClearModel: () => void
   survey: Survey | null
   selection: Selection | null
+  onRemoveWaypoint: (i: number) => void
+  onSetWaypointAlt: (i: number, alt: number) => void
   profile: VehicleProfile
   setProfile: (p: VehicleProfile) => void
   threshold: number
@@ -324,6 +328,15 @@ export function Inspector({
           <Section title={`Waypoint ${sel.index + 1}`}>
             <Field label="Latitude" value={survey.waypoints[sel.index].lat.toFixed(7)} />
             <Field label="Longitude" value={survey.waypoints[sel.index].lon.toFixed(7)} />
+            {/* edits the number as planned, in the waypoint's own frame — the
+                AMSL below is what that becomes once terrain is applied */}
+            <NumberField
+              key={sel.index}
+              label={`Altitude (${survey.waypoints[sel.index].frame})`}
+              unit="m"
+              value={survey.waypoints[sel.index].planned}
+              onChange={(v) => onSetWaypointAlt(sel.index, v)}
+            />
             <Field label="Altitude AMSL" value={m(survey.waypoints[sel.index].alt)} />
             <Field
               label="Above launch"
@@ -334,7 +347,16 @@ export function Inspector({
               value={m(survey.waypointClearance[sel.index])}
               tone={survey.waypointClearance[sel.index] < threshold ? 'bad' : 'good'}
             />
-            <Field label="Planned as" value={`${survey.waypoints[sel.index].planned} (${survey.waypoints[sel.index].frame})`} />
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={survey.waypoints.length <= 2}
+              onClick={() => onRemoveWaypoint(sel.index)}
+              className="mt-1.5 h-6 w-full text-xs"
+            >
+              <Trash2 />
+              Remove waypoint
+            </Button>
           </Section>
         )}
 

@@ -47,10 +47,20 @@ const syntheticHeight = (lat: number, lon: number) =>
   60 * Math.sin(lat * 2600 + 1.3) +
   40 * Math.cos(lon * 3100)
 
-async function fetchTile(z: number, x: number, y: number) {
-  const res = await fetch(`/api/tiles/${z}/${x}/${y}`)
-  if (!res.ok) return null
-  return decodePng(await res.arrayBuffer())
+// ponytail: unbounded Map of decoded tiles. A survey covers a handful of them
+// and editing a waypoint re-runs the whole pipeline per keystroke; evict only if
+// someone opens enough missions in one session to feel it.
+const tileCache = new Map<string, Promise<Awaited<ReturnType<typeof decodePng>> | null>>()
+
+function fetchTile(z: number, x: number, y: number) {
+  const key = `${z}/${x}/${y}`
+  const hit = tileCache.get(key)
+  if (hit) return hit
+  const t = fetch(`/api/tiles/${key}`).then(async (res) =>
+    res.ok ? decodePng(await res.arrayBuffer()) : null,
+  )
+  tileCache.set(key, t)
+  return t
 }
 
 export async function loadGrid(bbox: Bbox, z = 14, marginTiles = 0): Promise<Grid> {

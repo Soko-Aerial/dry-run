@@ -47,7 +47,15 @@ export async function runSurvey(
   profile: VehicleProfile,
   thresholdM: number,
 ): Promise<Survey> {
-  const mission = parseMission(text)
+  return surveyMission(parseMission(text), profile, thresholdM)
+}
+
+/** The same pipeline over waypoints already in memory — i.e. an edited mission. */
+export async function surveyMission(
+  mission: RawMission,
+  profile: VehicleProfile,
+  thresholdM: number,
+): Promise<Survey> {
   if (mission.waypoints.length < 2) {
     throw new Error(
       ['Mission needs at least two waypoints.', ...mission.warnings].join(' '),

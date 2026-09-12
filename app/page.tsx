@@ -2,7 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
-import { Upload, PanelLeft, PanelRight, PanelBottom } from 'lucide-react'
+import { Upload, PanelLeft, PanelRight, PanelBottom, MapPin } from 'lucide-react'
 import {
   ResizableHandle,
   ResizablePanel,
@@ -15,7 +15,8 @@ import { MissionTree } from '@/components/mission-tree'
 import { Inspector } from '@/components/inspector'
 import { Timeline } from '@/components/timeline'
 import { PROFILES, type VehicleProfile } from '@/lib/trajectory'
-import { runSurvey, type Selection, type Survey } from '@/lib/survey'
+import { parseMission, type RawMission, type RawWaypoint } from '@/lib/mission'
+import { surveyMission, type Selection, type Survey } from '@/lib/survey'
 import { Kbd } from '@/components/ui/kbd'
 import { cn } from '@/lib/utils'
 
@@ -57,8 +58,9 @@ export default function Page() {
   const [showRight, setShowRight] = useState(true)
   const [showBottom, setShowBottom] = useState(true)
   const [chase, setChase] = useState(false)
+  const [dropping, setDropping] = useState(false)
   const headRef = useRef(0)
-  const textRef = useRef<string | null>(null)
+  const missionRef = useRef<RawMission | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const modelRef = useRef<HTMLInputElement>(null)
 
@@ -69,28 +71,23 @@ export default function Page() {
     if (playing && survey && head >= survey.traj.length - 1) setPlaying(false)
   }, [playing, head, survey])
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setSelection(null)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [])
-
   const run = useCallback(
-    // `fresh` = a newly opened file. A re-run of the same mission keeps the
-    // selection: resetting it re-flows the inspector under the user's cursor,
-    // so the next click lands on whatever moved into that spot.
-    async (text: string, p = profile, t = threshold, fresh = false) => {
-      textRef.current = text
+    // `select` lands with the new survey, never before it: the inspector
+    // indexes into survey.waypoints, so selecting a waypoint that only exists
+    // in the edited mission throws on the render in between.
+    // Omitting it keeps the current selection — resetting it on a re-run
+    // re-flows the inspector under the user's cursor, so the next click lands
+    // on whatever moved into that spot.
+    async (mission: RawMission, p = profile, t = threshold, select?: Selection) => {
+      missionRef.current = mission
       setBusy(true)
       setError(null)
       try {
-        const s = await runSurvey(text, p, t)
+        const s = await surveyMission(mission, p, t)
         headRef.current = 0
         setHead(0)
         setSurvey(s)
-        if (fresh) setSelection({ kind: 'mission' })
+        if (select) setSelection(select)
       } catch (e) {
         setSurvey(null)
         setError(e instanceof Error ? e.message : String(e))
@@ -100,6 +97,76 @@ export default function Page() {
     },
     [profile, threshold],
   )
+
+  // Edits work on the parsed mission, never on the file text: the text is the
+  // artifact that was imported, and re-serialising it only to parse it again is
+  // a round trip with nothing at the far end.
+  const dropAt = useCallback(
+    (lat: number, lon: number) => {
+      const m = missionRef.current
+      if (!m) return
+      // drop after the selected waypoint, else extend the route
+      const at =
+        selection?.kind === 'waypoint' ? selection.index : m.waypoints.length - 1
+      const anchor = m.waypoints[at]
+      // Altitude is inherited, not invented. A new waypoint at 0 would read as a
+      // terrain breach the pilot never asked for; the inspector edits it after.
+      const wp: RawWaypoint = {
+        lat,
+        lon,
+        alt: anchor.alt,
+        frame: anchor.frame,
+        command: 16, // MAV_CMD_NAV_WAYPOINT
+      }
+      const waypoints = [...m.waypoints]
+      waypoints.splice(at + 1, 0, wp)
+      run({ ...m, waypoints }, profile, threshold, { kind: 'waypoint', index: at + 1 })
+    },
+    [run, selection, profile, threshold],
+  )
+
+  const removeWaypoint = useCallback(
+    (i: number) => {
+      const m = missionRef.current
+      // two is the floor: below it there is no mission left to check
+      if (!m || m.waypoints.length <= 2) return
+      run({ ...m, waypoints: m.waypoints.filter((_, n) => n !== i) }, profile, threshold, {
+        kind: 'waypoint',
+        index: Math.min(i, m.waypoints.length - 2),
+      })
+    },
+    [run, profile, threshold],
+  )
+
+  const setWaypointAlt = useCallback(
+    (i: number, alt: number) => {
+      const m = missionRef.current
+      if (!m) return
+      run({
+        ...m,
+        waypoints: m.waypoints.map((w, n) => (n === i ? { ...w, alt } : w)),
+      })
+    },
+    [run],
+  )
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      // the inspector is full of text fields; Backspace belongs to them there
+      const t = e.target as HTMLElement | null
+      if (t && (t.tagName === 'INPUT' || t.isContentEditable)) return
+      if (e.key === 'Escape') {
+        setDropping(false)
+        setSelection(null)
+      }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selection?.kind === 'waypoint') {
+        e.preventDefault()
+        removeWaypoint(selection.index)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [selection, removeWaypoint])
 
   return (
     <div className="bg-background flex h-full flex-col">
@@ -115,7 +182,7 @@ export default function Page() {
             if (!f) return
             setFileName(f.name)
             setMissionId((n) => n + 1)
-            run(await f.text(), profile, threshold, true)
+            run(parseMission(await f.text()), profile, threshold, { kind: 'mission' })
           }}
         />
         <input
@@ -215,8 +282,21 @@ export default function Page() {
                       onTick={setHead}
                       selection={selection}
                       onSelect={setSelection}
+                      onDrop={dropping && !chase ? dropAt : null}
                     />
-                    <div className="bg-card/80 border-border/60 absolute top-2 right-2 flex gap-0.5 rounded-md border p-0.5 backdrop-blur">
+                    <div className="absolute top-2 right-2 flex items-center gap-1.5">
+                    <Button
+                      size="sm"
+                      variant={dropping ? 'default' : 'secondary'}
+                      disabled={chase}
+                      aria-pressed={dropping}
+                      className="h-7 gap-1.5 px-2 text-xs"
+                      onClick={() => setDropping((d) => !d)}
+                    >
+                      <MapPin className="size-3.5" />
+                      Drop
+                    </Button>
+                    <div className="bg-card/80 border-border/60 flex gap-0.5 rounded-md border p-0.5 backdrop-blur">
                       {(['Orbit', 'Chase'] as const).map((m) => (
                         <Button
                           key={m}
@@ -229,6 +309,13 @@ export default function Page() {
                         </Button>
                       ))}
                     </div>
+                    </div>
+                    {dropping && (
+                      <span className="bg-card/80 border-border/60 text-muted-foreground absolute top-2 left-1/2 -translate-x-1/2 rounded-md border px-2 py-1 text-[11px] backdrop-blur">
+                        Click the terrain to drop a waypoint
+                        {selection?.kind === 'waypoint' ? ` after ${selection.index + 1}` : ''}
+                      </span>
+                    )}
                   </>
                 ) : (
                   <div className="grid h-full place-items-center">
@@ -303,16 +390,18 @@ export default function Page() {
                     setKind={(k) => {
                       setKind(k)
                       setProfile(PROFILES[k])
-                      if (textRef.current) run(textRef.current, PROFILES[k])
+                      if (missionRef.current) run(missionRef.current, PROFILES[k])
                     }}
                     survey={survey}
                     selection={selection}
+                    onRemoveWaypoint={removeWaypoint}
+                    onSetWaypointAlt={setWaypointAlt}
                     profile={profile}
                     setProfile={setProfile}
                     threshold={threshold}
                     setThreshold={setThreshold}
                     busy={busy}
-                    onRerun={() => textRef.current && run(textRef.current)}
+                    onRerun={() => missionRef.current && run(missionRef.current)}
                   />
                 </div>
               </div>

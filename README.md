@@ -17,6 +17,16 @@ the path — before anyone goes to the field.
 - Verdict is **GO / NO-GO** against a configurable minimum clearance (30 m),
   with the offending legs listed.
 
+## Editing the mission
+
+**Drop** turns the cursor into a pin: click the terrain to add a waypoint after
+the selected one, or at the end of the route. It inherits the altitude and frame
+of the waypoint it follows — set the real number in the inspector. `Delete`
+removes the selected waypoint. Every edit re-runs the full check.
+
+Edits live in the browser; there is no export yet, so the file on disk is never
+touched.
+
 ## The view
 
 Selecting anything — in the tree, in 3D, or on the profile — highlights it

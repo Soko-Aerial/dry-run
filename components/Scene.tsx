@@ -20,7 +20,13 @@ const PALETTE = {
   light: { flight: '#2a78d6', critical: '#d03b3b', aircraft: '#c98500', sky: '#cfe0f0', ground: '#6b6a5e' },
 }
 
-function Terrain({ survey }: { survey: Survey }) {
+function Terrain({
+  survey,
+  onDrop,
+}: {
+  survey: Survey
+  onDrop: ((lat: number, lon: number) => void) | null
+}) {
   const geom = useMemo(() => {
     const { positions, colors, indices } = gridToMesh(survey.grid, survey.origin, 90_000)
     const g = new THREE.BufferGeometry()
@@ -31,8 +37,24 @@ function Terrain({ survey }: { survey: Survey }) {
     return g
   }, [survey])
 
+  const f = enuFactors(survey.origin.lat)
+
   return (
-    <mesh geometry={geom}>
+    <mesh
+      geometry={geom}
+      onClick={
+        onDrop
+          ? (e) => {
+              e.stopPropagation()
+              // the mesh is built in the same ENU metres, so this inverts v3()
+              onDrop(
+                survey.origin.lat + -e.point.z / f.lat,
+                survey.origin.lon + e.point.x / f.lon,
+              )
+            }
+          : undefined
+      }
+    >
       <meshStandardMaterial vertexColors roughness={1} />
     </mesh>
   )
@@ -279,6 +301,7 @@ export default function Scene({
   onTick,
   selection,
   onSelect,
+  onDrop,
 }: {
   survey: Survey
   threshold: number
@@ -292,6 +315,8 @@ export default function Scene({
   onTick: (i: number) => void
   selection: Selection | null
   onSelect: (s: Selection) => void
+  /** non-null while the user is dropping waypoints onto the terrain */
+  onDrop: ((lat: number, lon: number) => void) | null
 }) {
   const { resolvedTheme } = useTheme()
   const colors = PALETTE[resolvedTheme === 'light' ? 'light' : 'dark']
@@ -372,10 +397,11 @@ export default function Scene({
       dpr={[1, 1.5]}
       gl={{ antialias: false, powerPreference: 'high-performance' }}
       camera={{ position: [homePos.x, homePos.y, homePos.z], near: 1, far: 200000 }}
+      className={onDrop ? 'cursor-crosshair' : undefined}
     >
       <hemisphereLight intensity={0.35} groundColor={colors.ground} color={colors.sky} />
       <directionalLight position={[-8000, 7200, 4800]} intensity={1.5} />
-      <Terrain survey={survey} />
+      <Terrain survey={survey} onDrop={onDrop} />
       <Line
         points={path as [number, number, number][]}
         color={colors.flight}
