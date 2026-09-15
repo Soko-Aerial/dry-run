@@ -19,6 +19,11 @@ the path — before anyone goes to the field.
 
 ## Editing the mission
 
+**Start here** builds a mission where you are standing: it reads the device
+location, loads the terrain around it and seeds a short leg at 100 m above
+launch for you to extend. Geolocation needs a secure context — `localhost` or
+https.
+
 **Drop** turns the cursor into a pin: click the terrain to add a waypoint after
 the selected one, or at the end of the route. It inherits the altitude and frame
 of the waypoint it follows — set the real number in the inspector. `Delete`

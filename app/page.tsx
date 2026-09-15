@@ -2,7 +2,7 @@
 
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
-import { Upload, PanelLeft, PanelRight, PanelBottom, MapPin } from 'lucide-react'
+import { Upload, PanelLeft, PanelRight, PanelBottom, MapPin, LocateFixed } from 'lucide-react'
 import {
   ResizableHandle,
   ResizablePanel,
@@ -156,6 +156,46 @@ export default function Page() {
     [run],
   )
 
+  // Start a mission where the pilot is standing. A survey needs a path, so this
+  // seeds the shortest honest one — a 200 m leg at 100 m above launch — and
+  // turns on Drop so the next click extends it. Geolocation needs a secure
+  // context: localhost or https, nothing else.
+  const startHere = useCallback(() => {
+    if (!navigator.geolocation) return setError('This browser has no geolocation.')
+    setBusy(true)
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        const { latitude: lat, longitude: lon } = coords
+        const wp = (la: number, lo: number): RawWaypoint => ({
+          lat: la,
+          lon: lo,
+          alt: 100,
+          frame: 'relative',
+          command: 16,
+        })
+        setFileName(`${lat.toFixed(5)}, ${lon.toFixed(5)}`)
+        setMissionId((n) => n + 1)
+        setDropping(true)
+        run(
+          {
+            home: { lat, lon, alt: 0 },
+            waypoints: [wp(lat, lon), wp(lat + 0.0018, lon)],
+            source: 'waypoints',
+            warnings: ['Mission started from your device location, not from a GCS export.'],
+          },
+          profile,
+          threshold,
+          { kind: 'mission' },
+        )
+      },
+      (e) => {
+        setBusy(false)
+        setError(`Location unavailable: ${e.message}`)
+      },
+      { enableHighAccuracy: true, timeout: 15000 },
+    )
+  }, [run, profile, threshold])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       // the inspector is full of text fields; Backspace belongs to them there
@@ -242,14 +282,25 @@ export default function Page() {
               <div className="flex h-full flex-col">
                 <PanelTitle
                   action={
-                    <Button
-                      size="icon-xs"
-                      variant="secondary"
-                      aria-label="Open mission"
-                      onClick={() => fileRef.current?.click()}
-                    >
-                      <Upload />
-                    </Button>
+                    <ButtonGroup>
+                      <Button
+                        size="icon-xs"
+                        variant="secondary"
+                        aria-label="Open mission"
+                        onClick={() => fileRef.current?.click()}
+                      >
+                        <Upload />
+                      </Button>
+                      <ButtonGroupSeparator />
+                      <Button
+                        size="icon-xs"
+                        variant="secondary"
+                        aria-label="Start a mission at my location"
+                        onClick={startHere}
+                      >
+                        <LocateFixed />
+                      </Button>
+                    </ButtonGroup>
                   }
                 >
                   Mission
@@ -328,15 +379,26 @@ export default function Page() {
                     {busy ? (
                       <span className="text-muted-foreground text-xs">Sampling terrain…</span>
                     ) : (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 gap-1.5 px-2.5 text-xs"
-                        onClick={() => fileRef.current?.click()}
-                      >
-                        <Upload />
-                        Open mission
-                      </Button>
+                      <div className="flex items-center gap-1.5">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 gap-1.5 px-2.5 text-xs"
+                          onClick={() => fileRef.current?.click()}
+                        >
+                          <Upload />
+                          Open mission
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 gap-1.5 px-2.5 text-xs"
+                          onClick={startHere}
+                        >
+                          <LocateFixed />
+                          Start here
+                        </Button>
+                      </div>
                     )}
                   </div>
                 )}
