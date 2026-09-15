@@ -51,6 +51,9 @@ function Terrain({
       onClick={
         onDrop
           ? (e) => {
+              // right and middle belong to the camera: right-drag pans, and the
+              // pointerup that ends a pan arrives here as a click
+              if (e.nativeEvent.button !== 0) return
               e.stopPropagation()
               // the mesh is built in the same ENU metres, so this inverts v3()
               onDrop(
@@ -148,6 +151,7 @@ function Aircraft({
       <group
         ref={body}
         onClick={(e) => {
+          if (e.nativeEvent.button !== 0) return
           e.stopPropagation()
           onSelectVehicle()
         }}
@@ -437,6 +441,7 @@ export default function Scene({
         color={colors.flight}
         lineWidth={2}
         onClick={(e) => {
+          if (e.nativeEvent.button !== 0) return
           e.stopPropagation()
           const p = e.point
           let best = 0
@@ -501,6 +506,7 @@ export default function Scene({
         <mesh
           position={m}
           onClick={(e) => {
+            if (e.nativeEvent.button !== 0) return
             e.stopPropagation()
             quiet.current = true
             onSelect({ kind: 'waypoint', index: i })
