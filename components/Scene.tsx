@@ -27,15 +27,21 @@ function Terrain({
   survey: Survey
   onDrop: ((lat: number, lon: number) => void) | null
 }) {
+  const { grid, origin } = survey
+  // Keyed on the grid, not the survey: an edited mission is a new survey over
+  // the same terrain, and regenerating 90k verts plus a GPU upload for it is
+  // seconds of nothing.
   const geom = useMemo(() => {
-    const { positions, colors, indices } = gridToMesh(survey.grid, survey.origin, 90_000)
+    const { positions, colors, indices } = gridToMesh(grid, origin, 90_000)
     const g = new THREE.BufferGeometry()
     g.setAttribute('position', new THREE.BufferAttribute(positions, 3))
     g.setAttribute('color', new THREE.BufferAttribute(colors, 3))
     g.setIndex(new THREE.BufferAttribute(indices, 1))
     g.computeVertexNormals()
     return g
-  }, [survey])
+    // origin is a fresh object every run; its two numbers are what matter
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [grid, origin.lat, origin.lon])
 
   const f = enuFactors(survey.origin.lat)
 

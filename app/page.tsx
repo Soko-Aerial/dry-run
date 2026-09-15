@@ -138,14 +138,20 @@ export default function Page() {
     [run, profile, threshold],
   )
 
+  // Typing "250" is three edits, and each one re-runs the whole check. Wait for
+  // the typing to stop instead.
+  const altTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const setWaypointAlt = useCallback(
     (i: number, alt: number) => {
-      const m = missionRef.current
-      if (!m) return
-      run({
-        ...m,
-        waypoints: m.waypoints.map((w, n) => (n === i ? { ...w, alt } : w)),
-      })
+      if (altTimer.current) clearTimeout(altTimer.current)
+      altTimer.current = setTimeout(() => {
+        const m = missionRef.current
+        if (!m) return
+        run({
+          ...m,
+          waypoints: m.waypoints.map((w, n) => (n === i ? { ...w, alt } : w)),
+        })
+      }, 250)
     },
     [run],
   )

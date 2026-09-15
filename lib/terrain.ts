@@ -63,13 +63,35 @@ function fetchTile(z: number, x: number, y: number) {
   return t
 }
 
-export async function loadGrid(bbox: Bbox, z = 14, marginTiles = 0): Promise<Grid> {
+// Keyed on the tile range, not the bbox: an edit moves the bbox a few metres and
+// almost never changes which tiles cover it. Handing back the identical Grid is
+// also what lets the mesh and the stats be reused — rebuilding those per edit is
+// what made dropping a waypoint take seconds.
+const gridCache = new Map<string, Promise<Grid>>()
+
+export function loadGrid(bbox: Bbox, z = 14, marginTiles = 0): Promise<Grid> {
   const ts = 512 // @2x tiles
   const tx0 = Math.floor(lonToPx(bbox.minLon, z, ts) / ts) - marginTiles
   const tx1 = Math.floor(lonToPx(bbox.maxLon, z, ts) / ts) + marginTiles
   const ty0 = Math.floor(latToPx(bbox.maxLat, z, ts) / ts) - marginTiles
   const ty1 = Math.floor(latToPx(bbox.minLat, z, ts) / ts) + marginTiles
 
+  const key = `${z}/${tx0},${tx1},${ty0},${ty1}`
+  const hit = gridCache.get(key)
+  if (hit) return hit
+  const grid = buildGrid(z, ts, tx0, tx1, ty0, ty1)
+  gridCache.set(key, grid)
+  return grid
+}
+
+async function buildGrid(
+  z: number,
+  ts: number,
+  tx0: number,
+  tx1: number,
+  ty0: number,
+  ty1: number,
+): Promise<Grid> {
   const cols = tx1 - tx0 + 1
   const rows = ty1 - ty0 + 1
   const width = cols * ts
@@ -143,14 +165,22 @@ export function sampleAt(grid: Grid, lat: number, lon: number): number {
   return top * (1 - fy) + bot * fy
 }
 
+// A full scan of a few million floats, now asked for once per survey on a grid
+// that is usually the same object as last time.
+const statsCache = new WeakMap<Grid, { min: number; max: number }>()
+
 export function gridStats(grid: Grid) {
+  const hit = statsCache.get(grid)
+  if (hit) return hit
   let min = Infinity
   let max = -Infinity
   for (const v of grid.data) {
     if (v < min) min = v
     if (v > max) max = v
   }
-  return { min, max }
+  const r = { min, max }
+  statsCache.set(grid, r)
+  return r
 }
 
 /**
