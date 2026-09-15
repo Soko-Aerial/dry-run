@@ -261,7 +261,20 @@ export function Inspector({
   return (
     <ScrollArea className="h-full">
       <div className="py-1">
-        {sel.kind === 'mission' && (
+        {sel.kind === 'mission' && survey.verdict === null && (
+          <>
+            <Section title="Site">
+              <p className="text-muted-foreground pb-1 text-xs">
+                Terrain loaded, no path yet. Drop two waypoints to get a verdict.
+              </p>
+              <Field label="Waypoints" value={survey.waypoints.length} />
+              <Field label="Launch elevation" value={m(survey.launchAmsl)} />
+            </Section>
+            {vehicle}
+          </>
+        )}
+
+        {sel.kind === 'mission' && survey.verdict !== null && (
           <>
             <Section title="Verdict">
               <div className="flex items-center gap-2 pb-1">

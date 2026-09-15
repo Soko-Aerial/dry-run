@@ -19,15 +19,17 @@ the path — before anyone goes to the field.
 
 ## Editing the mission
 
-**Start here** builds a mission where you are standing: it reads the device
-location, loads the terrain around it and seeds a short leg at 100 m above
-launch for you to extend. Geolocation needs a secure context — `localhost` or
-https.
+**Start here** loads the terrain around your device location and nothing else —
+no mission, no waypoints. The path is yours to drop. Geolocation needs a secure
+context: `localhost` or https.
 
 **Drop** turns the cursor into a pin: click the terrain to add a waypoint after
-the selected one, or at the end of the route. It inherits the altitude and frame
-of the waypoint it follows — set the real number in the inspector. `Delete`
-removes the selected waypoint. Every edit re-runs the full check.
+the selected one, or at the end of the route. It arrives at the same height
+above ground as the waypoint it follows (100 m for the first), which is why the
+marker floats above the spot you clicked — the thin line under each waypoint
+shows which ground it belongs to. `Delete` removes the selected waypoint. Every
+edit re-runs the full check; with fewer than two waypoints there is terrain to
+look at but no verdict to give.
 
 Edits live in the browser; there is no export yet, so the file on disk is never
 touched.

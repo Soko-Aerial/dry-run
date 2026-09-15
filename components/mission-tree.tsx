@@ -111,7 +111,7 @@ export function MissionTree({
         <Row
           icon={FolderOpen}
           label={fileName ?? 'mission'}
-          detail={survey.verdict}
+          detail={survey.verdict ?? undefined}
           warn={survey.verdict === 'NO-GO'}
           active={same(selection, { kind: 'mission' })}
           onClick={() => onSelect({ kind: 'mission' })}

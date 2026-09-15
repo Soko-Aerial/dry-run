@@ -38,7 +38,8 @@ export type Survey = {
   waypointClearance: number[]
   /** worst clearance on each leg, metres */
   legMinClearance: number[]
-  verdict: 'GO' | 'NO-GO'
+  /** null until there are two waypoints — nothing to check yet */
+  verdict: 'GO' | 'NO-GO' | null
   issues: string[]
 }
 
@@ -56,13 +57,10 @@ export async function surveyMission(
   profile: VehicleProfile,
   thresholdM: number,
 ): Promise<Survey> {
-  if (mission.waypoints.length < 2) {
-    throw new Error(
-      ['Mission needs at least two waypoints.', ...mission.warnings].join(' '),
-    )
-  }
-
   const pts = [...mission.waypoints, ...(mission.home ? [mission.home] : [])]
+  if (pts.length === 0) {
+    throw new Error(['Mission contains no positions.', ...mission.warnings].join(' '))
+  }
   const grid = await loadGrid(bboxOf(pts))
 
   // Launch elevation comes from the terrain, not the pilot (DESIGN.md #9).
@@ -71,6 +69,25 @@ export async function surveyMission(
   const origin = { lat: homePt.lat, lon: homePt.lon }
 
   const waypoints = toAmsl(mission.waypoints, launchAmsl, (lat, lon) => sampleAt(grid, lat, lon))
+  const waypointClearance = waypoints.map((w) => w.alt - sampleAt(grid, w.lat, w.lon))
+  const { min: lowestTerrain, max: highestTerrain } = gridStats(grid)
+
+  // Fewer than two waypoints is a site, not a mission: the terrain is real and
+  // worth looking at, there is just no path to fly through it yet. Everything
+  // downstream reads an empty trajectory as "nothing to check".
+  if (waypoints.length < 2) {
+    return {
+      mission, waypoints, origin, grid,
+      traj: [], demands: [],
+      launchAmsl, highestTerrain, lowestTerrain,
+      minClearance: Infinity, minClearanceLeg: 0,
+      distanceM: 0, durationS: 0,
+      waypointClearance, legMinClearance: [],
+      verdict: null,
+      issues: mission.warnings,
+    }
+  }
+
   const enu = toEnu(waypoints, origin)
 
   const f = enuFactors(origin.lat)
@@ -79,7 +96,6 @@ export async function surveyMission(
 
   const traj = annotateClearance(buildTrajectory(enu, profile), terrainAtEnu)
   const demands = legDemands(enu, profile)
-  const { min: lowestTerrain, max: highestTerrain } = gridStats(grid)
 
   let minClearance = Infinity
   let minClearanceLeg = 0
@@ -94,7 +110,6 @@ export async function surveyMission(
     p.s = distanceM
   }
 
-  const waypointClearance = waypoints.map((w) => w.alt - sampleAt(grid, w.lat, w.lon))
   const legMinClearance = demands.map(() => Infinity)
   for (const p of traj) {
     if (p.clearance! < legMinClearance[p.legIndex]) legMinClearance[p.legIndex] = p.clearance!

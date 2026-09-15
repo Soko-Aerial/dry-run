@@ -104,7 +104,8 @@ test: climb clamped over limit, corner cut inside waypoint by turn radius,
 leg under a ridge reports negative clearance. Three asserts, no framework.
 
 | 16 | PNG decoded by hand, never via canvas | `createImageBitmap`/`drawImage`/`getImageData` is a rendering path and rounds. Observed losing one count in the red channel on Windows Chrome — a 6553.6 m elevation error that still looked like terrain. `DecompressionStream` makes an exact decoder ~70 lines with no dependency. |
-| 19 | A location-started mission is seeded with a real leg, not an empty one | The whole pipeline — trajectory, clearance, verdict — needs a path. A 200 m leg at 100 m above launch is the shortest honest starting point, and it is immediately editable. |
+| 20 | A dropped waypoint inherits clearance, not altitude | Copying "100 m above launch" onto a hillside buries the waypoint and reports NO-GO before the pilot has typed anything. Matching the previous waypoint's height above the ground under the new one is the intent behind the number. |
+| 19 | Fewer than two waypoints is a site, not a mission | The terrain is real and worth looking at before there is any path. The survey returns an empty trajectory and a null verdict rather than an error, and the timeline, aircraft and flight path simply do not render. |
 | 18 | Editing works on the parsed mission, not the file text | A dropped waypoint inherits the altitude and frame of the one it follows, then re-runs the same pipeline. Re-serialising the file only to parse it again would be a round trip with nothing at the far end — and export is not a feature yet, so what you edit here never leaves the tool. |
 | 17 | Unknown commands carrying a position produce a warning | Silently dropping a waypoint yields a confident verdict on a path that isn't the mission. |
 

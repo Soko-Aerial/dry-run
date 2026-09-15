@@ -16,6 +16,7 @@ import { Inspector } from '@/components/inspector'
 import { Timeline } from '@/components/timeline'
 import { PROFILES, type VehicleProfile } from '@/lib/trajectory'
 import { parseMission, type RawMission, type RawWaypoint } from '@/lib/mission'
+import { sampleAt } from '@/lib/terrain'
 import { surveyMission, type Selection, type Survey } from '@/lib/survey'
 import { Kbd } from '@/components/ui/kbd'
 import { cn } from '@/lib/utils'
@@ -109,31 +110,45 @@ export default function Page() {
       const at =
         selection?.kind === 'waypoint' ? selection.index : m.waypoints.length - 1
       const anchor = m.waypoints[at]
-      // Altitude is inherited, not invented. A new waypoint at 0 would read as a
-      // terrain breach the pilot never asked for; the inspector edits it after.
+      // What carries over is the *clearance*, not the number: inheriting
+      // "100 m above launch" onto a hillside buries the waypoint in the ground
+      // and calls it NO-GO before the pilot has typed anything. Match the
+      // previous waypoint's height above ground over the spot just clicked —
+      // 100 m for the first one — then express it in that waypoint's frame.
+      const at0 = at >= 0 ? at : null
+      const agl = at0 !== null && survey ? survey.waypointClearance[at0] : 100
+      const frame = anchor?.frame ?? 'relative'
+      const groundAmsl = survey ? sampleAt(survey.grid, lat, lon) : 0
       const wp: RawWaypoint = {
         lat,
         lon,
-        alt: anchor.alt,
-        frame: anchor.frame,
+        alt:
+          frame === 'terrain'
+            ? agl
+            : groundAmsl + agl - (frame === 'relative' && survey ? survey.launchAmsl : 0),
+        frame,
         command: 16, // MAV_CMD_NAV_WAYPOINT
       }
       const waypoints = [...m.waypoints]
       waypoints.splice(at + 1, 0, wp)
       run({ ...m, waypoints }, profile, threshold, { kind: 'waypoint', index: at + 1 })
     },
-    [run, selection, profile, threshold],
+    [run, selection, profile, threshold, survey],
   )
 
   const removeWaypoint = useCallback(
     (i: number) => {
       const m = missionRef.current
-      // two is the floor: below it there is no mission left to check
-      if (!m || m.waypoints.length <= 2) return
-      run({ ...m, waypoints: m.waypoints.filter((_, n) => n !== i) }, profile, threshold, {
-        kind: 'waypoint',
-        index: Math.min(i, m.waypoints.length - 2),
-      })
+      if (!m || !m.waypoints.length) return
+      const waypoints = m.waypoints.filter((_, n) => n !== i)
+      run(
+        { ...m, waypoints },
+        profile,
+        threshold,
+        waypoints.length
+          ? { kind: 'waypoint', index: Math.min(i, waypoints.length - 1) }
+          : { kind: 'mission' },
+      )
     },
     [run, profile, threshold],
   )
@@ -156,32 +171,25 @@ export default function Page() {
     [run],
   )
 
-  // Start a mission where the pilot is standing. A survey needs a path, so this
-  // seeds the shortest honest one — a 200 m leg at 100 m above launch — and
-  // turns on Drop so the next click extends it. Geolocation needs a secure
-  // context: localhost or https, nothing else.
+  // Start a mission where the pilot is standing: load the terrain around the
+  // device location and nothing else. The waypoints are the pilot's to drop —
+  // inventing one would put a marker on the map nobody asked for. Geolocation
+  // needs a secure context: localhost or https, nothing else.
   const startHere = useCallback(() => {
     if (!navigator.geolocation) return setError('This browser has no geolocation.')
     setBusy(true)
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
         const { latitude: lat, longitude: lon } = coords
-        const wp = (la: number, lo: number): RawWaypoint => ({
-          lat: la,
-          lon: lo,
-          alt: 100,
-          frame: 'relative',
-          command: 16,
-        })
         setFileName(`${lat.toFixed(5)}, ${lon.toFixed(5)}`)
         setMissionId((n) => n + 1)
         setDropping(true)
         run(
           {
             home: { lat, lon, alt: 0 },
-            waypoints: [wp(lat, lon), wp(lat + 0.0018, lon)],
+            waypoints: [],
             source: 'waypoints',
-            warnings: ['Mission started from your device location, not from a GCS export.'],
+            warnings: ['Started from your device location, not from a GCS export.'],
           },
           profile,
           threshold,
@@ -409,7 +417,7 @@ export default function Page() {
                 <ResizableHandle />
                 <ResizablePanel defaultSize="34" minSize="12">
                   <Timeline
-                    survey={survey}
+                    survey={survey && survey.traj.length > 1 ? survey : null}
                     threshold={threshold}
                     head={head}
                     setHead={setHead}

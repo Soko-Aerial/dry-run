@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useMemo, useRef } from 'react'
+import { Fragment, Suspense, useEffect, useMemo, useRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls, Line } from '@react-three/drei'
 import { useTheme } from 'next-themes'
@@ -333,9 +333,18 @@ export default function Scene({
   )
 
   const { center, dist, marks } = useMemo(() => {
-    const es = survey.traj.map((p) => p.e)
-    const ns = survey.traj.map((p) => p.n)
-    const alts = survey.traj.map((p) => p.alt)
+    const f0 = enuFactors(survey.origin.lat)
+    // With no path yet there is still a site to look at: frame the launch point
+    // and whatever waypoints exist, so the terrain fills the view.
+    const site = survey.waypoints.map((w) => ({
+      e: (w.lon - survey.origin.lon) * f0.lon,
+      n: (w.lat - survey.origin.lat) * f0.lat,
+      alt: w.alt,
+    }))
+    const pts = survey.traj.length ? survey.traj : [{ e: 0, n: 0, alt: survey.launchAmsl }, ...site]
+    const es = pts.map((p) => p.e)
+    const ns = pts.map((p) => p.n)
+    const alts = pts.map((p) => p.alt)
     const extent = Math.max(
       Math.max(...es) - Math.min(...es),
       Math.max(...ns) - Math.min(...ns),
@@ -407,7 +416,22 @@ export default function Scene({
     >
       <hemisphereLight intensity={0.35} groundColor={colors.ground} color={colors.sky} />
       <directionalLight position={[-8000, 7200, 4800]} intensity={1.5} />
-      <Terrain survey={survey} onDrop={onDrop} />
+      <Terrain
+        survey={survey}
+        // A drop selects the new waypoint, and a selection normally flies the
+        // camera to it — which walks the view away from the spot just clicked
+        // and reads as the pin landing somewhere else. You are already looking
+        // at it; stay put.
+        onDrop={
+          onDrop
+            ? (lat, lon) => {
+                quiet.current = true
+                onDrop(lat, lon)
+              }
+            : null
+        }
+      />
+      {path.length > 1 && (
       <Line
         points={path as [number, number, number][]}
         color={colors.flight}
@@ -428,6 +452,7 @@ export default function Scene({
           onSelect({ kind: 'leg', index: survey.traj[best].legIndex })
         }}
       />
+      )}
       {legPath && <Line points={legPath} color={colors.aircraft} lineWidth={5} />}
       <Rig
         center={center}
@@ -440,6 +465,7 @@ export default function Scene({
         cmd={cmd}
         missionId={missionId}
       />
+      {survey.traj.length > 1 && (
       <Aircraft
         survey={survey}
         home={homePos}
@@ -457,9 +483,22 @@ export default function Scene({
         headRef={headRef}
         onTick={onTick}
       />
+      )}
       {marks.map((m, i) => (
+        <Fragment key={i}>
+        {/* A waypoint sits at its altitude, so on a tilted view its marker is
+            nowhere near the ground it belongs to — this says which spot it is. */}
+        <Line
+          points={[
+            [m.x, m.y, m.z],
+            [m.x, m.y - survey.waypointClearance[i], m.z],
+          ]}
+          color={survey.waypointClearance[i] < threshold ? colors.critical : colors.flight}
+          lineWidth={1}
+          transparent
+          opacity={0.5}
+        />
         <mesh
-          key={i}
           position={m}
           onClick={(e) => {
             e.stopPropagation()
@@ -478,6 +517,7 @@ export default function Scene({
             emissiveIntensity={i === selectedWp ? 0.6 : 0}
           />
         </mesh>
+        </Fragment>
       ))}
       {/* kept mounted so its target survives a chase-cam round trip */}
       <OrbitControls
