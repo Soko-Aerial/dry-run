@@ -3,6 +3,7 @@ import localFont from 'next/font/local'
 import { ThemeProvider } from 'next-themes'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import './globals.css'
+import 'mapbox-gl/dist/mapbox-gl.css'
 
 const graphik = localFont({
   src: [
