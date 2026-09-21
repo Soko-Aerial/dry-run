@@ -230,6 +230,23 @@ export default function MapScene({
   }, [map, missionId, survey])
 
   useEffect(() => {
+    const container = containerRef.current
+    if (!map || !container) return
+    let frame = 0
+    const resize = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => map.resize())
+    }
+    const observer = new ResizeObserver(resize)
+    observer.observe(container)
+    resize()
+    return () => {
+      observer.disconnect()
+      cancelAnimationFrame(frame)
+    }
+  }, [map])
+
+  useEffect(() => {
     if (!map) return
     const f = enuFactors(survey.origin.lat)
     const lngLat = (p: { e: number; n: number }): [number, number] => [
