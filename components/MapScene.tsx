@@ -173,7 +173,7 @@ export default function MapScene({
           paint: {
             'model-elevation-reference': 'sea',
             'model-translation': [0, 0, ['get', 'altitude']],
-            'model-scale': [5, 5, 5],
+            'model-scale': [1.5, 1.5, 1.5],
             'model-color': [
               'case',
               ['boolean', ['get', 'selected'], false], '#c98500',
