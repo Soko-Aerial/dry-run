@@ -31,7 +31,7 @@ function PanelTitle({
   action?: React.ReactNode
 }) {
   return (
-    <div className="border-border/60 flex h-7 shrink-0 items-center gap-2 border-b px-2 text-[11px] font-medium">
+    <div className="border-border/60 flex h-9 shrink-0 items-center gap-2 border-b px-2 text-[11px] font-medium">
       {children}
       {action && <span className="ml-auto">{action}</span>}
     </div>
