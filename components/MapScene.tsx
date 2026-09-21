@@ -6,13 +6,11 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
 import { Box3, Vector3 } from 'three'
 import { enuFactors } from '@/lib/mission'
+import { mapboxModelYaw } from '@/lib/model-yaw'
 import type { Selection, Survey } from '@/lib/survey'
 
 const EMPTY_PATH = { type: 'FeatureCollection' as const, features: [] }
-const DEFAULT_AIRCRAFT_YAW = 90
-// Three's Object3D.lookAt aligns +Z with the route. Mapbox's model source
-// presents an imported glTF's forward direction opposite that convention.
-const MAPBOX_GLTF_FORWARD_OFFSET = 180
+const DEFAULT_AIRCRAFT_YAW = mapboxModelYaw()
 type AircraftPose = { lon: number; lat: number; altitude: number; heading: number }
 type AircraftModel = { uri: string; scale: number; yaw: number }
 
@@ -329,7 +327,7 @@ export default function MapScene({
       if (!active) { void fetch(uri, { method: 'DELETE', keepalive: true }); return }
       uploadedUri = uri
       const scale = 40 / Math.max(size.x, size.y, size.z, 1e-6)
-      aircraftModelRef.current = { uri, scale, yaw: modelYawDeg + MAPBOX_GLTF_FORWARD_OFFSET }
+      aircraftModelRef.current = { uri, scale, yaw: mapboxModelYaw(modelYawDeg) }
       map.setPaintProperty('dry-run-aircraft', 'model-scale', [scale, scale, scale])
       if (aircraftPositionRef.current) placeAircraft(map, aircraftPositionRef.current, aircraftModelRef.current)
     }).catch(() => {
@@ -349,7 +347,7 @@ export default function MapScene({
 
   useEffect(() => {
     aircraftModelRef.current.yaw = modelUrl
-      ? modelYawDeg + MAPBOX_GLTF_FORWARD_OFFSET
+      ? mapboxModelYaw(modelYawDeg)
       : DEFAULT_AIRCRAFT_YAW
     if (map && aircraftPositionRef.current) placeAircraft(map, aircraftPositionRef.current, aircraftModelRef.current)
   }, [map, modelUrl, modelYawDeg])

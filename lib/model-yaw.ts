@@ -3,6 +3,10 @@ import { Box3, Object3D, Vector3 } from 'three'
 const FORWARD = /\b(front|nose|cockpit|camera|gimbal|head)\b/
 const REAR = /\b(tail|rear|back)\b/
 
+// Mapbox presents a glTF model's forward direction opposite Three's +Z
+// convention used by the yaw inference below.
+export const mapboxModelYaw = (inferredYaw = 0) => inferredYaw + 180
+
 /** Infer the model's nose and return the Y rotation that points it along +Z. */
 export function inferModelYaw(root: Object3D): number {
   root.updateWorldMatrix(true, true)
