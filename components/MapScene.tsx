@@ -16,6 +16,19 @@ const MAPBOX_GLTF_FORWARD_OFFSET = 180
 type AircraftPose = { lon: number; lat: number; altitude: number; heading: number }
 type AircraftModel = { uri: string; scale: number; yaw: number }
 
+function waypointModels(survey: Survey, threshold: number, selection: Selection | null) {
+  return Object.fromEntries(survey.waypoints.map((wp, i) => [String(i), {
+    uri: '/waypoint.glb',
+    position: [wp.lon, wp.lat] as [number, number],
+    featureProperties: {
+      altitude: wp.alt,
+      index: i,
+      breach: survey.waypointClearance[i] < threshold,
+      selected: selection?.kind === 'waypoint' && selection.index === i,
+    },
+  }]))
+}
+
 const mapboxYaw = (heading: number, modelYaw: number) =>
   180 + heading * 180 / Math.PI + modelYaw
 
@@ -90,6 +103,9 @@ export default function MapScene({
         instance.addSource('dry-run-clearance', {
           type: 'geojson', lineMetrics: true, data: EMPTY_PATH,
         })
+        instance.addSource('dry-run-waypoints', {
+          type: 'model', models: waypointModels(survey, threshold, selection),
+        })
         instance.addLayer({
           id: 'dry-run-path', type: 'line', source: 'dry-run-path', slot: 'top',
           layout: {
@@ -151,6 +167,22 @@ export default function MapScene({
             'line-color': ['case', ['boolean', ['get', 'breach'], false], '#d03b3b', '#22c55e'],
             'line-width': 4,
             'line-emissive-strength': 1,
+          },
+        })
+        instance.addLayer({
+          id: 'dry-run-waypoints', type: 'model', source: 'dry-run-waypoints', slot: 'top',
+          paint: {
+            'model-elevation-reference': 'sea',
+            'model-translation': [0, 0, ['get', 'altitude']],
+            'model-scale': [5, 5, 5],
+            'model-color': [
+              'case',
+              ['boolean', ['get', 'selected'], false], '#c98500',
+              ['boolean', ['get', 'breach'], false], '#d03b3b',
+              '#3987e5',
+            ],
+            'model-color-mix-intensity': 1,
+            'model-emissive-strength': 1,
           },
         })
         const first = survey.traj[0]
@@ -244,7 +276,10 @@ export default function MapScene({
 
   useEffect(() => {
     if (!map) return
-    const stemSource = map.getSource('dry-run-waypoint-stems') as mapboxgl.GeoJSONSource
+    const waypointSource = map.getSource('dry-run-waypoints') as mapboxgl.ModelSource | undefined
+    const stemSource = map.getSource('dry-run-waypoint-stems') as mapboxgl.GeoJSONSource | undefined
+    if (!waypointSource || !stemSource) return
+    waypointSource.setModels(waypointModels(survey, threshold, selection))
     stemSource.setData({
       type: 'FeatureCollection',
       features: survey.waypoints.map((wp, i) => ({
@@ -258,24 +293,11 @@ export default function MapScene({
         // two-vertex vertical line as a zero-length segment.
         geometry: {
           type: 'LineString' as const,
-          coordinates: [[wp.lon, wp.lat], [wp.lon + 1e-10, wp.lat]],
+          coordinates: [[wp.lon, wp.lat], [wp.lon + 0.5 / enuFactors(wp.lat).lon, wp.lat]],
         },
       })),
     })
-    const markers = survey.waypoints.map((wp, i) => {
-      const el = document.createElement('button')
-      el.type = 'button'
-      el.textContent = String(i + 1)
-      el.title = `Waypoint ${i + 1}`
-      el.className = 'grid size-6 place-items-center rounded-full border-2 border-white bg-blue-600 text-xs font-semibold text-white shadow-md'
-      if (selection?.kind === 'waypoint' && selection.index === i) el.classList.replace('bg-blue-600', 'bg-amber-600')
-      if (survey.waypointClearance[i] < threshold) el.classList.replace('bg-blue-600', 'bg-red-600')
-      el.addEventListener('click', (e) => { e.stopPropagation(); onSelect({ kind: 'waypoint', index: i }) })
-      return new mapboxgl.Marker({ element: el, altitude: Math.max(0, survey.waypointClearance[i]) })
-        .setLngLat([wp.lon, wp.lat]).addTo(map)
-    })
-    return () => markers.forEach((marker) => marker.remove())
-  }, [map, survey, selection, onSelect, threshold])
+  }, [map, survey, selection, threshold])
 
   useEffect(() => {
     if (!map) return
@@ -347,6 +369,14 @@ export default function MapScene({
           return
         }
       }
+      const waypoint = map.getLayer('dry-run-waypoints')
+        ? map.queryRenderedFeatures(e.point, { layers: ['dry-run-waypoints'] })[0]
+        : undefined
+      const waypointIndex = Number((waypoint as { properties?: Record<string, unknown> } | undefined)?.properties?.index)
+      if (Number.isInteger(waypointIndex)) {
+        onSelect({ kind: 'waypoint', index: waypointIndex })
+        return
+      }
       const leg = map.queryRenderedFeatures(e.point, { layers: ['dry-run-path'] })[0]
       const legIndex = Number((leg as { properties?: Record<string, unknown> } | undefined)?.properties?.legIndex)
       if (Number.isInteger(legIndex)) onSelect({ kind: 'leg', index: legIndex })
@@ -417,7 +447,7 @@ export default function MapScene({
             },
             geometry: {
               type: 'LineString',
-              coordinates: [position, [position[0] + 1e-10, position[1]]],
+              coordinates: [position, [position[0] + 0.5 / f.lon, position[1]]],
             },
           }],
         })
