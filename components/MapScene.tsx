@@ -343,9 +343,8 @@ export default function MapScene({
       if (!uploadedUri) return
       const uri = uploadedUri
       uploadedUri = null
-      void fetch(uri, { method: 'DELETE', keepalive: true })
+      URL.revokeObjectURL(uri)
     }
-    window.addEventListener('pagehide', release)
     const model = new Promise<{ size: Vector3; blob: Blob }>((resolve, reject) => {
       new GLTFLoader().load(modelUrl, (gltf) => {
         const size = new Box3().setFromObject(gltf.scene).getSize(new Vector3())
@@ -356,10 +355,8 @@ export default function MapScene({
       }, undefined, reject)
     })
     model.then(async ({ size, blob }) => {
-      const response = await fetch('/api/models', { method: 'POST', body: blob })
-      if (!response.ok) throw new Error('Could not load the GLB into the map')
-      const { url: uri } = await response.json() as { url: string }
-      if (!active) { void fetch(uri, { method: 'DELETE', keepalive: true }); return }
+      const uri = URL.createObjectURL(blob)
+      if (!active) { URL.revokeObjectURL(uri); return }
       uploadedUri = uri
       const scale = 40 / Math.max(size.x, size.y, size.z, 1e-6)
       aircraftModelRef.current = { uri, scale, yaw: mapboxModelYaw(modelYawDeg) }
@@ -373,7 +370,6 @@ export default function MapScene({
     })
     return () => {
       active = false
-      window.removeEventListener('pagehide', release)
       release()
     }
     // Changing yaw should rotate the loaded model, not reload it.

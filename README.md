@@ -84,3 +84,16 @@ Stop the bridge with Ctrl+C. Restart it with the same command. To run the bridge
 uv run --locked --project tools/mavlink python -m unittest discover -s tools/mavlink -p 'test_*.py'
 pnpm test
 ```
+
+## Deploy to Cloudflare
+
+The existing `dry-run` Worker uses vinext and Wrangler. Next.js local development remains available through `pnpm dev`.
+
+```bash
+pnpm install --frozen-lockfile
+pnpm deploy:vinext
+```
+
+This builds the app and deploys `dist/server/wrangler.json`, preserving dashboard variables and existing secrets. The deployed Worker needs its existing `MAPBOX_TOKEN` secret. GLB models use browser object URLs instead of server filesystem storage.
+
+The hosted Worker cannot reach the loopback-only MAVLink bridge on your computer. Live telemetry currently requires the local app and bridge.

@@ -44,3 +44,8 @@ next-env.d.ts
 .venv/
 __pycache__/
 *.pyc
+
+/dist/
+.vinext/
+.wrangler/
+/worker-configuration.d.ts
