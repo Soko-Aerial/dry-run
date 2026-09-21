@@ -102,7 +102,6 @@ function Aircraft({
   const chaseEngaged = useRef(false)
   const { camera } = useThree()
   const dt = survey.traj[1].t - survey.traj[0].t
-  const routeHeading = survey.traj[0]?.heading
 
   useFrame((_, delta) => {
     if (playing) {
@@ -113,17 +112,12 @@ function Aircraft({
     }
     const i = Math.floor(headRef.current)
     const p = survey.traj[i]
+    const next = survey.traj[Math.min(i + 1, survey.traj.length - 1)]
     if (!body.current) return
 
     const pos = v3(p)
     body.current.position.copy(pos)
-    if (routeHeading !== undefined) {
-      body.current.lookAt(
-        pos.x + Math.sin(routeHeading),
-        pos.y,
-        pos.z - Math.cos(routeHeading),
-      )
-    }
+    if (next !== p) body.current.lookAt(v3(next))
 
     // clearance drop-line: perspective makes a vertical gap unjudgeable by eye
     const g = drop.current!.geometry as THREE.BufferGeometry
