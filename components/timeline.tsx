@@ -280,7 +280,7 @@ function ClearanceProfile({
         <line
           x1={x(cur.s ?? 0)}
           x2={x(cur.s ?? 0)}
-          y1={PAD.top}
+          y1={0}
           y2={PAD.top + ih}
           className="stroke-foreground"
           strokeWidth={1.5}
@@ -356,6 +356,21 @@ export function Timeline({
     [headRef, setHead],
   )
 
+  const scrubDistance = useCallback(
+    (distance: number) => {
+      if (!survey) return
+      let lo = 0
+      let hi = survey.traj.length - 1
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1
+        if ((survey.traj[mid].s ?? 0) < distance) lo = mid + 1
+        else hi = mid
+      }
+      scrub(lo)
+    },
+    [survey, scrub],
+  )
+
   if (!survey) {
     return (
       <div className="text-muted-foreground flex h-full items-center px-3 text-xs">
@@ -365,6 +380,8 @@ export function Timeline({
   }
 
   const cur = survey.traj[Math.min(head, survey.traj.length - 1)]
+  const seekerMax = Math.max(1, survey.distanceM)
+  const seekerPosition = Math.min(seekerMax, cur.s ?? 0)
 
   return (
     <div className="flex h-full flex-col">
@@ -414,15 +431,26 @@ export function Timeline({
           {cur.clearance!.toFixed(0)} m AGL
         </span>
       </div>
-      <div className="border-border/60 flex h-8 shrink-0 items-center border-b px-3">
-        <Slider
-          aria-label="Flight playback position"
-          min={0}
-          max={survey.traj.length - 1}
-          step={1}
-          value={[Math.min(head, survey.traj.length - 1)]}
-          onValueChange={(value) => scrub(typeof value === 'number' ? value : value[0])}
-        />
+      <div
+        className="flex h-7 shrink-0 items-center"
+        style={{ paddingLeft: PAD.left, paddingRight: PAD.right }}
+      >
+        <div className="relative flex h-full w-full items-center">
+          <Slider
+            aria-label="Flight playback position"
+            min={0}
+            max={seekerMax}
+            step={Math.max(1, seekerMax / (survey.traj.length - 1))}
+            value={[seekerPosition]}
+            onValueChange={(value) => scrubDistance(typeof value === 'number' ? value : value[0])}
+            className="[&_[data-slot=slider-track]]:h-px [&_[data-slot=slider-track]]:bg-foreground/20 [&_[data-slot=slider-range]]:bg-foreground [&_[data-slot=slider-thumb]]:size-2.5 [&_[data-slot=slider-thumb]]:border-foreground"
+          />
+          <span
+            aria-hidden="true"
+            className="bg-foreground pointer-events-none absolute top-1/2 -bottom-0.5 w-px"
+            style={{ left: `${(seekerPosition / seekerMax) * 100}%` }}
+          />
+        </div>
       </div>
       <div className="min-h-0 flex-1">
         <ClearanceProfile
