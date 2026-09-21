@@ -21,7 +21,6 @@ import { surveyMission, type Selection, type Survey } from '@/lib/survey'
 import { Kbd } from '@/components/ui/kbd'
 import { cn } from '@/lib/utils'
 
-const Scene = dynamic(() => import('@/components/Scene'), { ssr: false })
 const MapScene = dynamic(() => import('@/components/MapScene'), { ssr: false })
 
 function PanelTitle({
@@ -57,7 +56,6 @@ export default function Page() {
   const [showRight, setShowRight] = useState(true)
   const [showBottom, setShowBottom] = useState(true)
   const [chase, setChase] = useState(false)
-  const [mapMode, setMapMode] = useState<'map' | 'flight'>('map')
   const [dropping, setDropping] = useState(false)
   const headRef = useRef(0)
   const missionRef = useRef<RawMission | null>(null)
@@ -346,57 +344,23 @@ export default function Page() {
               <div className="relative h-full">
                 {survey ? (
                   <>
-                    {mapMode === 'map' ? (
-                      <MapScene
-                        missionId={missionId}
-                        modelUrl={model?.url ?? null}
-                        modelYawDeg={model?.yaw ?? 0}
-                        survey={survey}
-                        threshold={threshold}
-                        playing={playing}
-                        speed={speed}
-                        chase={chase}
-                        headRef={headRef}
-                        onTick={setHead}
-                        selection={selection}
-                        onSelect={setSelection}
-                        onDrop={dropping && !chase ? dropAt : null}
-                        onUnavailable={() => {
-                          setError('Mapbox 3D map unavailable; showing flight view.')
-                          setMapMode('flight')
-                        }}
-                      />
-                    ) : (
-                      <Scene
-                        missionId={missionId}
-                        modelUrl={model?.url ?? null}
-                        modelYawDeg={model?.yaw ?? 0}
-                        survey={survey}
-                        threshold={threshold}
-                        playing={playing}
-                        speed={speed}
-                        chase={chase}
-                        headRef={headRef}
-                        onTick={setHead}
-                        selection={selection}
-                        onSelect={setSelection}
-                        onDrop={dropping && !chase ? dropAt : null}
-                      />
-                    )}
+                    <MapScene
+                      missionId={missionId}
+                      modelUrl={model?.url ?? null}
+                      modelYawDeg={model?.yaw ?? 0}
+                      survey={survey}
+                      threshold={threshold}
+                      playing={playing}
+                      speed={speed}
+                      chase={chase}
+                      headRef={headRef}
+                      onTick={setHead}
+                      selection={selection}
+                      onSelect={setSelection}
+                      onDrop={dropping && !chase ? dropAt : null}
+                      onUnavailable={() => setError('Mapbox 3D map unavailable.')}
+                    />
                     <div className="absolute top-2 right-2 flex items-center gap-1.5">
-                    <div className="bg-card/80 border-border/60 flex gap-0.5 rounded-md border p-0.5 backdrop-blur">
-                      {(['Map + Flight', 'Terrain'] as const).map((mode) => (
-                        <Button
-                          key={mode}
-                          size="sm"
-                          variant={mapMode === (mode === 'Map + Flight' ? 'map' : 'flight') ? 'secondary' : 'ghost'}
-                          className="h-6 px-2 text-xs"
-                          onClick={() => setMapMode(mode === 'Map + Flight' ? 'map' : 'flight')}
-                        >
-                          {mode}
-                        </Button>
-                      ))}
-                    </div>
                     <Button
                       size="sm"
                       variant={dropping ? 'default' : 'secondary'}

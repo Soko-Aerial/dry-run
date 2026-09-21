@@ -81,9 +81,17 @@ export default function MapScene({
         instance.addSource('dry-run-path', {
           type: 'geojson', lineMetrics: true, data: EMPTY_PATH,
         })
+        instance.addSource('dry-run-waypoint-stems', {
+          type: 'geojson', lineMetrics: true, data: EMPTY_PATH,
+        })
+        instance.addSource('dry-run-clearance', {
+          type: 'geojson', lineMetrics: true, data: EMPTY_PATH,
+        })
         instance.addLayer({
           id: 'dry-run-path', type: 'line', source: 'dry-run-path', slot: 'top',
           layout: {
+            'line-cap': 'round',
+            'line-join': 'round',
             'line-elevation-reference': 'sea',
             'line-z-offset': [
               'at-interpolated',
@@ -92,8 +100,53 @@ export default function MapScene({
             ],
           },
           paint: {
-            'line-color': ['case', ['boolean', ['get', 'breach'], false], '#d03b3b', '#3987e5'],
-            'line-width': 5,
+            'line-color': [
+              'case',
+              ['boolean', ['get', 'selected'], false], '#c98500',
+              ['boolean', ['get', 'breach'], false], '#d03b3b',
+              '#3987e5',
+            ],
+            'line-width': ['case', ['boolean', ['get', 'selected'], false], 7, 5],
+            'line-emissive-strength': 1,
+          },
+        })
+        instance.addLayer({
+          id: 'dry-run-waypoint-stems', type: 'line', source: 'dry-run-waypoint-stems', slot: 'top',
+          layout: {
+            'line-cap': 'round',
+            'line-elevation-reference': 'sea',
+            'line-z-offset': [
+              'at-interpolated',
+              ['*', ['line-progress'], ['-', ['length', ['get', 'elevation']], 1]],
+              ['get', 'elevation'],
+            ],
+          },
+          paint: {
+            'line-color': [
+              'case',
+              ['boolean', ['get', 'selected'], false], '#c98500',
+              ['boolean', ['get', 'breach'], false], '#d03b3b',
+              '#3987e5',
+            ],
+            'line-width': ['case', ['boolean', ['get', 'selected'], false], 4, 2],
+            'line-opacity': 0.65,
+            'line-emissive-strength': 1,
+          },
+        })
+        instance.addLayer({
+          id: 'dry-run-clearance', type: 'line', source: 'dry-run-clearance', slot: 'top',
+          layout: {
+            'line-cap': 'round',
+            'line-elevation-reference': 'sea',
+            'line-z-offset': [
+              'at-interpolated',
+              ['*', ['line-progress'], ['-', ['length', ['get', 'elevation']], 1]],
+              ['get', 'elevation'],
+            ],
+          },
+          paint: {
+            'line-color': ['case', ['boolean', ['get', 'breach'], false], '#d03b3b', '#22c55e'],
+            'line-width': 4,
             'line-emissive-strength': 1,
           },
         })
@@ -176,16 +229,36 @@ export default function MapScene({
         properties: {
           elevation: [prev.alt, next.alt],
           breach: Math.min(prev.clearance ?? Infinity, next.clearance ?? Infinity) < threshold,
+          legIndex: prev.legIndex,
+          selected: selection?.kind === 'leg' && selection.index === prev.legIndex,
         },
         geometry: { type: 'LineString' as const, coordinates: [lngLat(prev), lngLat(next)] },
       }
     })
     const source = map.getSource('dry-run-path') as mapboxgl.GeoJSONSource
     source.setData({ type: 'FeatureCollection', features })
-  }, [map, survey, threshold])
+  }, [map, survey, threshold, selection])
 
   useEffect(() => {
     if (!map) return
+    const stemSource = map.getSource('dry-run-waypoint-stems') as mapboxgl.GeoJSONSource
+    stemSource.setData({
+      type: 'FeatureCollection',
+      features: survey.waypoints.map((wp, i) => ({
+        type: 'Feature' as const,
+        properties: {
+          elevation: [wp.alt - survey.waypointClearance[i], wp.alt],
+          breach: survey.waypointClearance[i] < threshold,
+          selected: selection?.kind === 'waypoint' && selection.index === i,
+        },
+        // A sub-centimetre horizontal offset keeps Mapbox from discarding the
+        // two-vertex vertical line as a zero-length segment.
+        geometry: {
+          type: 'LineString' as const,
+          coordinates: [[wp.lon, wp.lat], [wp.lon + 1e-10, wp.lat]],
+        },
+      })),
+    })
     const markers = survey.waypoints.map((wp, i) => {
       const el = document.createElement('button')
       el.type = 'button'
@@ -264,9 +337,16 @@ export default function MapScene({
     const click = (e: mapboxgl.MapMouseEvent) => {
       if (onDrop) { onDrop(e.lngLat.lat, e.lngLat.lng); return }
       const p = aircraftPositionRef.current
-      if (!p) return
-      const screen = map.project([p.lon, p.lat], p.altitude)
-      if (Math.hypot(e.point.x - screen.x, e.point.y - screen.y) < 25) onSelect({ kind: 'vehicle' })
+      if (p) {
+        const screen = map.project([p.lon, p.lat], p.altitude)
+        if (Math.hypot(e.point.x - screen.x, e.point.y - screen.y) < 25) {
+          onSelect({ kind: 'vehicle' })
+          return
+        }
+      }
+      const leg = map.queryRenderedFeatures(e.point, { layers: ['dry-run-path'] })[0]
+      const legIndex = Number((leg as { properties?: Record<string, unknown> } | undefined)?.properties?.legIndex)
+      if (Number.isInteger(legIndex)) onSelect({ kind: 'leg', index: legIndex })
     }
     const canvas = map.getCanvas()
     map.on('click', click)
@@ -291,7 +371,11 @@ export default function MapScene({
   useEffect(() => {
     if (!map) return
     map.setLayoutProperty('dry-run-aircraft', 'visibility', survey.traj.length ? 'visible' : 'none')
-    if (!survey.traj.length) return
+    const clearanceSource = map.getSource('dry-run-clearance') as mapboxgl.GeoJSONSource
+    if (!survey.traj.length) {
+      clearanceSource.setData(EMPTY_PATH)
+      return
+    }
     const f = enuFactors(survey.origin.lat)
     const sampleDt = survey.traj.length > 1 ? survey.traj[1].t - survey.traj[0].t : 0.1
     const startIndex = Number.isFinite(headRef.current)
@@ -318,7 +402,23 @@ export default function MapScene({
       const p = survey.traj[i]
       const position: [number, number] = [survey.origin.lon + p.e / f.lon, survey.origin.lat + p.n / f.lat]
       aircraftPositionRef.current = { lon: position[0], lat: position[1], altitude: p.alt, heading: p.heading }
-      if (changed) placeAircraft(map, aircraftPositionRef.current, aircraftModelRef.current)
+      if (changed) {
+        placeAircraft(map, aircraftPositionRef.current, aircraftModelRef.current)
+        clearanceSource.setData({
+          type: 'FeatureCollection',
+          features: [{
+            type: 'Feature',
+            properties: {
+              elevation: [p.terrain ?? p.alt - (p.clearance ?? 0), p.alt],
+              breach: (p.clearance ?? Infinity) < threshold,
+            },
+            geometry: {
+              type: 'LineString',
+              coordinates: [position, [position[0] + 1e-10, position[1]]],
+            },
+          }],
+        })
+      }
       aircraftMarkerRef.current?.setLngLat(position).setAltitude(Math.max(0, p.clearance ?? 0)).setRotation(p.heading * 180 / Math.PI)
       if (chase && now - lastCamera > 100) {
         map.jumpTo({ center: position, zoom: Math.max(map.getZoom(), 15), pitch: 75, bearing: p.heading * 180 / Math.PI })
