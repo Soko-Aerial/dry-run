@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Gauge, Pause, Play, TriangleAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Slider } from '@/components/ui/slider'
 import {
   Select,
   SelectContent,
@@ -44,14 +45,12 @@ function ClearanceProfile({
   threshold,
   head,
   selectedLeg,
-  onScrub,
   onSelectLeg,
 }: {
   survey: Survey
   threshold: number
   head: number
   selectedLeg: number
-  onScrub: (i: number) => void
   onSelectLeg: (i: number) => void
 }) {
   const [ref, { w, h }] = useSize<HTMLDivElement>()
@@ -145,14 +144,11 @@ function ClearanceProfile({
       ref={ref}
       className="relative h-full w-full select-none"
       onPointerDown={(e) => {
-        ;(e.target as Element).setPointerCapture?.(e.pointerId)
         const i = atX(e.clientX)
-        onScrub(i)
         onSelectLeg(traj[i].legIndex)
       }}
       onPointerMove={(e) => {
         setHover(atX(e.clientX))
-        if (e.buttons === 1) onScrub(atX(e.clientX))
       }}
       onPointerLeave={() => setHover(null)}
     >
@@ -418,13 +414,22 @@ export function Timeline({
           {cur.clearance!.toFixed(0)} m AGL
         </span>
       </div>
+      <div className="border-border/60 flex h-8 shrink-0 items-center border-b px-3">
+        <Slider
+          aria-label="Flight playback position"
+          min={0}
+          max={survey.traj.length - 1}
+          step={1}
+          value={[Math.min(head, survey.traj.length - 1)]}
+          onValueChange={(value) => scrub(typeof value === 'number' ? value : value[0])}
+        />
+      </div>
       <div className="min-h-0 flex-1">
         <ClearanceProfile
           survey={survey}
           threshold={threshold}
           head={head}
           selectedLeg={selection?.kind === 'leg' ? selection.index : -1}
-          onScrub={scrub}
           onSelectLeg={(i) => onSelect({ kind: 'leg', index: i })}
         />
       </div>
