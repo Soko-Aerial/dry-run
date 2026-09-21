@@ -63,7 +63,6 @@ export default function MapScene({
   const containerRef = useRef<HTMLDivElement>(null)
   const aircraftModelRef = useRef({ uri: '/aircraft.glb', scale: 1.8, yaw: DEFAULT_AIRCRAFT_YAW })
   const aircraftPositionRef = useRef<AircraftPose | null>(null)
-  const aircraftMarkerRef = useRef<mapboxgl.Marker | null>(null)
   const framedRef = useRef(-1)
   const [loaded, setLoaded] = useState<{ map: mapboxgl.Map; missionId: number } | null>(null)
   const map = loaded?.missionId === missionId ? loaded.map : null
@@ -211,7 +210,6 @@ export default function MapScene({
     return () => {
       active = false
       aircraftPositionRef.current = null
-      aircraftMarkerRef.current = null
       instance?.remove()
     }
     // A new imported mission gets a fresh map. Edits update its sources below.
@@ -230,24 +228,6 @@ export default function MapScene({
       map.jumpTo({ center: [survey.origin.lon, survey.origin.lat], zoom: 14, pitch: 65 })
     }
   }, [map, missionId, survey])
-
-  useEffect(() => {
-    if (!map || !survey.traj.length) return
-    const p = survey.traj[0]
-    const f = enuFactors(survey.origin.lat)
-    const el = document.createElement('button')
-    el.type = 'button'
-    el.textContent = '▲'
-    el.title = 'Aircraft'
-    el.className = 'grid size-4 place-items-center rounded-full border border-white bg-amber-600/70 text-[9px] text-white shadow-lg'
-    el.addEventListener('click', (e) => { e.stopPropagation(); onSelect({ kind: 'vehicle' }) })
-    const marker = new mapboxgl.Marker({ element: el, rotationAlignment: 'map' })
-      .setLngLat([survey.origin.lon + p.e / f.lon, survey.origin.lat + p.n / f.lat])
-      .setAltitude(Math.max(0, p.clearance ?? 0))
-      .addTo(map)
-    aircraftMarkerRef.current = marker
-    return () => { aircraftMarkerRef.current = null; marker.remove() }
-  }, [map, survey, onSelect])
 
   useEffect(() => {
     if (!map) return
@@ -452,7 +432,6 @@ export default function MapScene({
           }],
         })
       }
-      aircraftMarkerRef.current?.setLngLat(position).setAltitude(Math.max(0, p.clearance ?? 0)).setRotation(p.heading * 180 / Math.PI)
       if (chase && now - lastCamera > 100) {
         map.jumpTo({ center: position, zoom: Math.max(map.getZoom(), 15), pitch: 75, bearing: p.heading * 180 / Math.PI })
         lastCamera = now
