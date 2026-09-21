@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Gauge, Pause, Play, TriangleAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Slider } from '@/components/ui/slider'
 import {
   Select,
   SelectContent,
@@ -432,24 +431,52 @@ export function Timeline({
         </span>
       </div>
       <div
-        className="flex h-7 shrink-0 items-center"
+        className="flex h-8 shrink-0 items-center"
         style={{ paddingLeft: PAD.left, paddingRight: PAD.right }}
       >
-        <div className="relative flex h-full w-full items-center">
-          <Slider
+        <div className="border-border relative h-full w-full border-b">
+          {Array.from({ length: 21 }, (_, i) => {
+            const major = i % 5 === 0
+            const ratio = i / 20
+            return (
+              <span
+                key={i}
+                aria-hidden="true"
+                className={cn(
+                  'bg-muted-foreground/60 absolute bottom-0 w-px',
+                  major ? 'h-2' : 'h-1',
+                )}
+                style={{ left: `${ratio * 100}%` }}
+              >
+                {major && (
+                  <span
+                    className="text-muted-foreground absolute bottom-2.5 text-[9px] tabular-nums"
+                    style={{ transform: `translateX(${i === 0 ? '0' : i === 20 ? '-100%' : '-50%'})` }}
+                  >
+                    {(survey.durationS * ratio).toFixed(1)}s
+                  </span>
+                )}
+              </span>
+            )
+          })}
+          <input
+            type="range"
             aria-label="Flight playback position"
             min={0}
             max={seekerMax}
             step={Math.max(1, seekerMax / (survey.traj.length - 1))}
-            value={[seekerPosition]}
-            onValueChange={(value) => scrubDistance(typeof value === 'number' ? value : value[0])}
-            className="[&_[data-slot=slider-track]]:h-px [&_[data-slot=slider-track]]:bg-foreground/20 [&_[data-slot=slider-range]]:bg-foreground [&_[data-slot=slider-thumb]]:size-2.5 [&_[data-slot=slider-thumb]]:border-foreground"
+            value={seekerPosition}
+            onChange={(e) => scrubDistance(Number(e.target.value))}
+            className="absolute inset-0 z-10 size-full cursor-ew-resize opacity-0"
           />
           <span
             aria-hidden="true"
-            className="bg-foreground pointer-events-none absolute top-1/2 -bottom-0.5 w-px"
+            className="pointer-events-none absolute top-0 -bottom-0.5 -translate-x-1/2"
             style={{ left: `${(seekerPosition / seekerMax) * 100}%` }}
-          />
+          >
+            <span className="absolute top-0 -left-1 size-0 border-x-4 border-t-7 border-x-transparent border-t-foreground" />
+            <span className="bg-foreground absolute top-1.5 bottom-0 left-0 w-px" />
+          </span>
         </div>
       </div>
       <div className="min-h-0 flex-1">
