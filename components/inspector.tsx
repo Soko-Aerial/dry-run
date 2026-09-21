@@ -104,7 +104,6 @@ export function Inspector({
   modelName,
   modelUrl,
   modelYaw,
-  setModelYaw,
   onPickModel,
   onClearModel,
   survey,
@@ -123,7 +122,6 @@ export function Inspector({
   modelName: string | null
   modelUrl: string | null
   modelYaw: number
-  setModelYaw: (v: number) => void
   onPickModel: () => void
   onClearModel: () => void
   survey: Survey | null
@@ -222,12 +220,9 @@ export function Inspector({
           )}
         </div>
         {modelUrl && (
-          <>
-            <div className="bg-muted/40 border-border/60 mt-1 overflow-hidden rounded-md border">
-              <ModelPreview url={modelUrl} yawDeg={modelYaw} />
-            </div>
-            <NumberField label="Model yaw" unit="°" value={modelYaw} onChange={setModelYaw} />
-          </>
+          <div className="bg-muted/40 border-border/60 mt-1 overflow-hidden rounded-md border">
+            <ModelPreview url={modelUrl} yawDeg={modelYaw} />
+          </div>
         )}
       </Section>
       <Section title="Check">

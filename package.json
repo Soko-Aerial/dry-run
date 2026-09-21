@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx lib/trajectory.test.ts && tsx lib/mission.test.ts && tsx lib/png.test.mts"
+    "test": "tsx lib/trajectory.test.ts && tsx lib/mission.test.ts && tsx lib/png.test.mts && tsx lib/model-yaw.test.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

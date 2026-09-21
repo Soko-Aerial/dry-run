@@ -45,10 +45,7 @@ export default function Page() {
   const [threshold, setThreshold] = useState(30)
   const [survey, setSurvey] = useState<Survey | null>(null)
   const [fileName, setFileName] = useState<string | null>(null)
-  const [model, setModel] = useState<{ url: string; name: string } | null>(null)
-  // glTF assets disagree on the forward axis; -90° suits a nose-along-+X model,
-  // which is the common case. The knob in the inspector covers the rest.
-  const [modelYaw, setModelYaw] = useState(-90)
+  const [model, setModel] = useState<{ url: string; name: string; yaw: number } | null>(null)
   const [missionId, setMissionId] = useState(0)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -246,13 +243,26 @@ export default function Page() {
           type="file"
           accept=".glb,.gltf"
           className="hidden"
-          onChange={(e) => {
+          onChange={async (e) => {
             const f = e.target.files?.[0]
             if (!f) return
-            setModel((prev) => {
-              if (prev) URL.revokeObjectURL(prev.url)
-              return { url: URL.createObjectURL(f), name: f.name }
-            })
+            const url = URL.createObjectURL(f)
+            try {
+              const [{ GLTFLoader }, { inferModelYaw }] = await Promise.all([
+                import('three/addons/loaders/GLTFLoader.js'),
+                import('@/lib/model-yaw'),
+              ])
+              const yaw = inferModelYaw((await new GLTFLoader().loadAsync(url)).scene)
+              setModel((prev) => {
+                if (prev) URL.revokeObjectURL(prev.url)
+                return { url, name: f.name, yaw }
+              })
+            } catch {
+              URL.revokeObjectURL(url)
+              setError('Could not read that vehicle model.')
+            } finally {
+              e.target.value = ''
+            }
           }}
         />
         {error && <span className="text-destructive truncate text-xs">{error}</span>}
@@ -340,7 +350,7 @@ export default function Page() {
                       <MapScene
                         missionId={missionId}
                         modelUrl={model?.url ?? null}
-                        modelYawDeg={modelYaw}
+                        modelYawDeg={model?.yaw ?? 0}
                         survey={survey}
                         threshold={threshold}
                         playing={playing}
@@ -360,7 +370,7 @@ export default function Page() {
                       <Scene
                         missionId={missionId}
                         modelUrl={model?.url ?? null}
-                        modelYawDeg={modelYaw}
+                        modelYawDeg={model?.yaw ?? 0}
                         survey={survey}
                         threshold={threshold}
                         playing={playing}
@@ -492,8 +502,7 @@ export default function Page() {
                   <Inspector
                     modelName={model?.name ?? null}
                     modelUrl={model?.url ?? null}
-                    modelYaw={modelYaw}
-                    setModelYaw={setModelYaw}
+                    modelYaw={model?.yaw ?? 0}
                     onPickModel={() => modelRef.current?.click()}
                     onClearModel={() => {
                       if (model) URL.revokeObjectURL(model.url)
