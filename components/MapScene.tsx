@@ -16,11 +16,14 @@ const MAPBOX_GLTF_FORWARD_OFFSET = 180
 type AircraftPose = { lon: number; lat: number; altitude: number; heading: number }
 type AircraftModel = { uri: string; scale: number; yaw: number }
 
+const mapboxYaw = (heading: number, modelYaw: number) =>
+  180 + heading * 180 / Math.PI + modelYaw
+
 function placeAircraft(map: mapboxgl.Map, pose: AircraftPose, model: AircraftModel) {
   const source = map.getSource('dry-run-aircraft') as mapboxgl.ModelSource
   source.setModels({ aircraft: {
     uri: model.uri, position: [pose.lon, pose.lat],
-    orientation: [0, 0, 180 - pose.heading * 180 / Math.PI + model.yaw],
+    orientation: [0, 0, mapboxYaw(pose.heading, model.yaw)],
   } })
   map.setFeatureState({ source: 'dry-run-aircraft', sourceLayer: '', id: 'aircraft' }, { altitude: pose.altitude })
 }
@@ -157,7 +160,7 @@ export default function MapScene({
           models: { aircraft: {
             uri: '/aircraft.glb',
             position: [survey.origin.lon + (first?.e ?? 0) / f.lon, survey.origin.lat + (first?.n ?? 0) / f.lat],
-            orientation: [0, 0, 180 - (first?.heading ?? 0) * 180 / Math.PI + DEFAULT_AIRCRAFT_YAW],
+            orientation: [0, 0, mapboxYaw(first?.heading ?? 0, DEFAULT_AIRCRAFT_YAW)],
           } },
         })
         instance.addLayer({
