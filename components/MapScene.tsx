@@ -6,11 +6,11 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
 import { Box3, Vector3 } from 'three'
 import { enuFactors } from '@/lib/mission'
-import { mapboxModelYaw } from '@/lib/model-yaw'
+import { DEFAULT_AIRCRAFT_MAPBOX_YAW, mapboxModelYaw } from '@/lib/model-yaw'
 import type { Selection, Survey } from '@/lib/survey'
 
 const EMPTY_PATH = { type: 'FeatureCollection' as const, features: [] }
-const DEFAULT_AIRCRAFT_YAW = mapboxModelYaw()
+const DEFAULT_AIRCRAFT_YAW = DEFAULT_AIRCRAFT_MAPBOX_YAW
 type AircraftPose = { lon: number; lat: number; altitude: number; heading: number }
 type AircraftModel = { uri: string; scale: number; yaw: number }
 

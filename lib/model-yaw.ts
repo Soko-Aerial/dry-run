@@ -7,6 +7,9 @@ const REAR = /\b(tail|rear|back)\b/
 // convention used by the yaw inference below.
 export const mapboxModelYaw = (inferredYaw = 0) => inferredYaw + 180
 
+// The bundled cone was authored one quarter turn from the glTF +Z convention.
+export const DEFAULT_AIRCRAFT_MAPBOX_YAW = mapboxModelYaw(90)
+
 /** Infer the model's nose and return the Y rotation that points it along +Z. */
 export function inferModelYaw(root: Object3D): number {
   root.updateWorldMatrix(true, true)

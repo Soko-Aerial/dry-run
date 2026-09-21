@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert'
 import { BoxGeometry, Group, Mesh } from 'three'
-import { inferModelYaw, mapboxModelYaw } from './model-yaw'
+import { DEFAULT_AIRCRAFT_MAPBOX_YAW, inferModelYaw, mapboxModelYaw } from './model-yaw'
 
 function part(name: string, x: number, z: number) {
   const mesh = new Mesh(new BoxGeometry())
@@ -27,7 +27,7 @@ function part(name: string, x: number, z: number) {
   assert.equal(inferModelYaw(symmetricDrone), 0, 'symmetric models use the glTF forward axis')
 }
 
-assert.equal(mapboxModelYaw(), 180, 'the bundled +Z aircraft gets only the Mapbox correction')
+assert.equal(DEFAULT_AIRCRAFT_MAPBOX_YAW, 270, 'the bundled aircraft keeps its authored quarter turn')
 assert.equal(mapboxModelYaw(-90), 90, 'custom model inference remains part of its Mapbox yaw')
 
 console.log('ok — model yaw inference')
