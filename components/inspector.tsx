@@ -213,7 +213,7 @@ export function Inspector({
               </ButtonGroup>
             </div>
           ) : (
-            <Button size="xs" variant="secondary" onClick={onPickModel} className="justify-start">
+            <Button size="sm" variant="secondary" onClick={onPickModel} className="justify-start">
               <Upload />
               Import .glb
             </Button>

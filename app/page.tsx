@@ -31,7 +31,7 @@ function PanelTitle({
   action?: React.ReactNode
 }) {
   return (
-    <div className="border-border/60 flex h-9 shrink-0 items-center gap-2 border-b px-2 text-[11px] font-medium">
+    <div className="border-border/60 flex h-8 shrink-0 items-center gap-2 border-b px-2 text-[11px] font-medium">
       {children}
       {action && <span className="ml-auto">{action}</span>}
     </div>
@@ -278,10 +278,9 @@ export default function Page() {
                 {i > 0 && <ButtonGroupSeparator />}
                 <Button
                   variant="secondary"
-                  size="icon"
+                  size="icon-sm"
                   aria-label={label}
                   aria-pressed={on}
-                  className="size-7"
                   onClick={() => set(!on)}
                 >
                   <Icon className={cn('size-3.5', !on && 'text-muted-foreground/50')} />
@@ -302,9 +301,8 @@ export default function Page() {
                   action={
                     <ButtonGroup>
                       <Button
-                        size="icon"
+                        size="icon-sm"
                         variant="secondary"
-                        className="size-7"
                         aria-label="Open mission"
                         onClick={() => fileRef.current?.click()}
                       >
@@ -312,9 +310,8 @@ export default function Page() {
                       </Button>
                       <ButtonGroupSeparator />
                       <Button
-                        size="icon"
+                        size="icon-sm"
                         variant="secondary"
-                        className="size-7"
                         aria-label="Start a mission at my location"
                         onClick={startHere}
                       >
@@ -368,7 +365,7 @@ export default function Page() {
                       variant={dropping ? 'default' : 'secondary'}
                       disabled={chase}
                       aria-pressed={dropping}
-                      className="h-7 gap-1.5 px-2 text-xs"
+                      className="h-6 gap-1.5 px-2 text-xs"
                       onClick={() => setDropping((d) => !d)}
                     >
                       <MapPin className="size-3.5" />
@@ -404,7 +401,7 @@ export default function Page() {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-7 gap-1.5 px-2.5 text-xs"
+                          className="h-6 gap-1.5 px-2.5 text-xs"
                           onClick={() => fileRef.current?.click()}
                         >
                           <Upload />
@@ -413,7 +410,7 @@ export default function Page() {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-7 gap-1.5 px-2.5 text-xs"
+                          className="h-6 gap-1.5 px-2.5 text-xs"
                           onClick={startHere}
                         >
                           <LocateFixed />

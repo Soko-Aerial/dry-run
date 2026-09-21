@@ -386,9 +386,8 @@ export function Timeline({
     <div className="flex h-full flex-col">
       <div className="border-border/60 flex h-8 shrink-0 items-center gap-2 border-b px-2 text-xs">
         <Button
-          size="icon"
+          size="icon-sm"
           variant="secondary"
-          className="size-6"
           aria-label={playing ? 'Pause' : 'Play'}
           onClick={() => {
             if (headRef.current >= survey.traj.length - 1) scrub(0)

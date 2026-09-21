@@ -12,7 +12,7 @@ export function ZoomButtons({
   onZoom,
   disabled,
   className,
-  size = 'icon',
+  size = 'icon-sm',
 }: {
   onZoom: (what: ZoomCmd) => void
   disabled?: boolean
