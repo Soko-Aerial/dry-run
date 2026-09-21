@@ -282,7 +282,7 @@ function ClearanceProfile({
           y1={0}
           y2={PAD.top + ih}
           className="stroke-foreground"
-          strokeWidth={1.5}
+          strokeWidth={2}
         />
       </svg>
 
@@ -471,11 +471,11 @@ export function Timeline({
           />
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute top-0 -bottom-0.5 -translate-x-1/2"
+            className="pointer-events-none absolute top-0 -bottom-0.5 w-2 -translate-x-1/2"
             style={{ left: `${(seekerPosition / seekerMax) * 100}%` }}
           >
-            <span className="absolute top-0 -left-1 size-0 border-x-4 border-t-7 border-x-transparent border-t-foreground" />
-            <span className="bg-foreground absolute top-1.5 bottom-0 left-0 w-px" />
+            <span className="absolute top-0 left-1/2 size-0 -translate-x-1/2 border-x-4 border-t-7 border-x-transparent border-t-foreground" />
+            <span className="bg-foreground absolute top-1.5 bottom-0 left-1/2 w-0.5 -translate-x-1/2" />
           </span>
         </div>
       </div>
