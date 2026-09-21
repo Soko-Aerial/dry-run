@@ -27,7 +27,7 @@ function part(name: string, x: number, z: number) {
   assert.equal(inferModelYaw(symmetricDrone), 0, 'symmetric models use the glTF forward axis')
 }
 
-assert.equal(DEFAULT_AIRCRAFT_MAPBOX_YAW, 270, 'the bundled aircraft keeps its authored quarter turn')
+assert.equal(DEFAULT_AIRCRAFT_MAPBOX_YAW, 0, 'the bundled aircraft needs no extra yaw')
 assert.equal(mapboxModelYaw(-90), 90, 'custom model inference remains part of its Mapbox yaw')
 
 console.log('ok — model yaw inference')
