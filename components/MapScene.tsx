@@ -287,6 +287,7 @@ export default function MapScene({
     if (!map) return
     map.setLayoutProperty('dry-run-aircraft', 'visibility', survey.traj.length ? 'visible' : 'none')
     if (!survey.traj.length) return
+    const routeHeading = survey.traj[0].heading
     const f = enuFactors(survey.origin.lat)
     const sampleDt = survey.traj.length > 1 ? survey.traj[1].t - survey.traj[0].t : 0.1
     const startIndex = Number.isFinite(headRef.current)
@@ -294,7 +295,7 @@ export default function MapScene({
     const start = survey.traj[startIndex]
     const startLon = survey.origin.lon + start.e / f.lon
     const startLat = survey.origin.lat + start.n / f.lat
-    aircraftPositionRef.current = { lon: startLon, lat: startLat, altitude: start.alt, heading: start.heading }
+    aircraftPositionRef.current = { lon: startLon, lat: startLat, altitude: start.alt, heading: routeHeading }
     placeAircraft(map, aircraftPositionRef.current, aircraftModelRef.current)
     let frame = 0
     let last = performance.now()
@@ -312,9 +313,9 @@ export default function MapScene({
       if (changed) { onTick(i); lastIndex = i }
       const p = survey.traj[i]
       const position: [number, number] = [survey.origin.lon + p.e / f.lon, survey.origin.lat + p.n / f.lat]
-      aircraftPositionRef.current = { lon: position[0], lat: position[1], altitude: p.alt, heading: p.heading }
+      aircraftPositionRef.current = { lon: position[0], lat: position[1], altitude: p.alt, heading: routeHeading }
       if (changed) placeAircraft(map, aircraftPositionRef.current, aircraftModelRef.current)
-      aircraftMarkerRef.current?.setLngLat(position).setAltitude(Math.max(0, p.clearance ?? 0)).setRotation(p.heading * 180 / Math.PI)
+      aircraftMarkerRef.current?.setLngLat(position).setAltitude(Math.max(0, p.clearance ?? 0)).setRotation(routeHeading * 180 / Math.PI)
       if (chase && now - lastCamera > 100) {
         map.jumpTo({ center: position, zoom: Math.max(map.getZoom(), 15), pitch: 75, bearing: p.heading * 180 / Math.PI })
         lastCamera = now
