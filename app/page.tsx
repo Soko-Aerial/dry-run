@@ -302,8 +302,9 @@ export default function Page() {
                   action={
                     <ButtonGroup>
                       <Button
-                        size="icon-xs"
+                        size="icon"
                         variant="secondary"
+                        className="size-7"
                         aria-label="Open mission"
                         onClick={() => fileRef.current?.click()}
                       >
@@ -311,8 +312,9 @@ export default function Page() {
                       </Button>
                       <ButtonGroupSeparator />
                       <Button
-                        size="icon-xs"
+                        size="icon"
                         variant="secondary"
+                        className="size-7"
                         aria-label="Start a mission at my location"
                         onClick={startHere}
                       >

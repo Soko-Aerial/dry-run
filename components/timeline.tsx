@@ -387,7 +387,7 @@ export function Timeline({
       <div className="border-border/60 flex h-8 shrink-0 items-center gap-2 border-b px-2 text-xs">
         <Button
           size="icon"
-          variant="ghost"
+          variant="secondary"
           className="size-6"
           aria-label={playing ? 'Pause' : 'Play'}
           onClick={() => {
