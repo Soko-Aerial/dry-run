@@ -43,13 +43,14 @@ function placeAircraft(map: mapboxgl.Map, pose: AircraftPose, model: AircraftMod
 
 export default function MapScene({
   survey, threshold, playing, speed, chase, missionId, headRef, onTick,
-  selection, onSelect, onDrop, onUnavailable, modelUrl, modelYawDeg,
+  selection, onSelect, onDrop, onUnavailable, onChaseExit, modelUrl, modelYawDeg,
 }: {
   survey: Survey
   threshold: number
   playing: boolean
   speed: number
   chase: boolean
+  onChaseExit: () => void
   missionId: number
   headRef: React.RefObject<number>
   onTick: (i: number) => void
@@ -66,6 +67,7 @@ export default function MapScene({
   const framedRef = useRef(-1)
   const chaseMapRef = useRef<mapboxgl.Map | null>(null)
   const previousChaseRef = useRef(false)
+  const chaseInterruptedRef = useRef(false)
   const [loaded, setLoaded] = useState<{ map: mapboxgl.Map; missionId: number } | null>(null)
   const map = loaded?.missionId === missionId ? loaded.map : null
 
@@ -408,12 +410,46 @@ export default function MapScene({
       previousChaseRef.current = false
     }
     if (chase && !previousChaseRef.current) {
+      chaseInterruptedRef.current = false
       map.jumpTo({ zoom: map.getZoom() + CHASE_ZOOM_DELTA, pitch: CHASE_PITCH })
     } else if (!chase && previousChaseRef.current) {
       map.jumpTo({ zoom: map.getZoom() - CHASE_ZOOM_DELTA, pitch: 65 })
     }
     previousChaseRef.current = chase
   }, [map, chase])
+
+  useEffect(() => {
+    if (!map || !chase) return
+    const canvas = map.getCanvas()
+    let pointer: { x: number; y: number } | null = null
+    const interrupt = () => {
+      if (chaseInterruptedRef.current) return
+      chaseInterruptedRef.current = true
+      onChaseExit()
+    }
+    const pointerDown = (event: PointerEvent) => { pointer = { x: event.clientX, y: event.clientY } }
+    const pointerMove = (event: PointerEvent) => {
+      if (pointer && Math.hypot(event.clientX - pointer.x, event.clientY - pointer.y) > 3) interrupt()
+    }
+    const pointerUp = () => { pointer = null }
+    const keyDown = (event: KeyboardEvent) => {
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', '+', '-', '=', 'PageUp', 'PageDown'].includes(event.key)) interrupt()
+    }
+    canvas.addEventListener('pointerdown', pointerDown)
+    canvas.addEventListener('pointermove', pointerMove)
+    canvas.addEventListener('wheel', interrupt, { passive: true })
+    canvas.addEventListener('dblclick', interrupt)
+    canvas.addEventListener('keydown', keyDown)
+    window.addEventListener('pointerup', pointerUp)
+    return () => {
+      canvas.removeEventListener('pointerdown', pointerDown)
+      canvas.removeEventListener('pointermove', pointerMove)
+      canvas.removeEventListener('wheel', interrupt)
+      canvas.removeEventListener('dblclick', interrupt)
+      canvas.removeEventListener('keydown', keyDown)
+      window.removeEventListener('pointerup', pointerUp)
+    }
+  }, [map, chase, onChaseExit])
 
   useEffect(() => {
     if (!map) return
@@ -441,6 +477,7 @@ export default function MapScene({
     let last = performance.now()
     let lastIndex = -1
     let lastRenderedHead = -1
+    let chaseOffset: [number, number] = [0, 0]
     const tick = (now: number) => {
       if (!Number.isFinite(headRef.current)) headRef.current = 0
       if (playing && survey.traj.length > 1 && sampleDt > 0) {
@@ -486,8 +523,25 @@ export default function MapScene({
           },
         }],
       })
-      if (chase) {
-        map.jumpTo({ center: position, zoom: Math.max(map.getZoom(), 15 + CHASE_ZOOM_DELTA), pitch: CHASE_PITCH, bearing: heading * 180 / Math.PI })
+      if (chase && !chaseInterruptedRef.current) {
+        const camera = {
+          center: position,
+          zoom: Math.max(map.getZoom(), 15 + CHASE_ZOOM_DELTA),
+          pitch: CHASE_PITCH,
+          bearing: heading * 180 / Math.PI,
+          duration: 0,
+        }
+        map.easeTo({ ...camera, offset: chaseOffset })
+        const canvas = map.getCanvas()
+        const projected = map.project(position, clearance)
+        const correction: [number, number] = [
+          canvas.clientWidth / 2 - projected.x,
+          canvas.clientHeight / 2 - projected.y,
+        ]
+        if (Math.abs(correction[0]) > 0.25 || Math.abs(correction[1]) > 0.25) {
+          chaseOffset = [chaseOffset[0] + correction[0], chaseOffset[1] + correction[1]]
+          map.easeTo({ ...camera, offset: chaseOffset })
+        }
       }
       frame = requestAnimationFrame(tick)
     }

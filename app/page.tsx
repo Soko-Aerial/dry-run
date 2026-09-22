@@ -61,6 +61,7 @@ export default function Page() {
   const missionRef = useRef<RawMission | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const modelRef = useRef<HTMLInputElement>(null)
+  const exitChase = useCallback(() => setChase(false), [])
 
   // Playback clamps at the last sample but nothing cleared the flag, so the
   // button showed Pause on a stopped flight and one click both rewound and
@@ -354,6 +355,7 @@ export default function Page() {
                       playing={playing}
                       speed={speed}
                       chase={chase}
+                      onChaseExit={exitChase}
                       headRef={headRef}
                       onTick={setHead}
                       selection={selection}
