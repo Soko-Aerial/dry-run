@@ -11,6 +11,8 @@ import type { Selection, Survey } from '@/lib/survey'
 
 const EMPTY_PATH = { type: 'FeatureCollection' as const, features: [] }
 const DEFAULT_AIRCRAFT_YAW = DEFAULT_AIRCRAFT_MAPBOX_YAW
+const CHASE_PITCH = 55
+const CHASE_ZOOM_DELTA = Math.log2(10 / 9)
 type AircraftPose = { lon: number; lat: number; clearance: number; heading: number }
 type AircraftModel = { uri: string; scale: number; yaw: number }
 
@@ -62,6 +64,8 @@ export default function MapScene({
   const aircraftModelRef = useRef({ uri: '/aircraft.glb', scale: 1.8, yaw: DEFAULT_AIRCRAFT_YAW })
   const aircraftPositionRef = useRef<AircraftPose | null>(null)
   const framedRef = useRef(-1)
+  const chaseMapRef = useRef<mapboxgl.Map | null>(null)
+  const previousChaseRef = useRef(false)
   const [loaded, setLoaded] = useState<{ map: mapboxgl.Map; missionId: number } | null>(null)
   const map = loaded?.missionId === missionId ? loaded.map : null
 
@@ -399,6 +403,20 @@ export default function MapScene({
 
   useEffect(() => {
     if (!map) return
+    if (chaseMapRef.current !== map) {
+      chaseMapRef.current = map
+      previousChaseRef.current = false
+    }
+    if (chase && !previousChaseRef.current) {
+      map.jumpTo({ zoom: map.getZoom() + CHASE_ZOOM_DELTA, pitch: CHASE_PITCH })
+    } else if (!chase && previousChaseRef.current) {
+      map.jumpTo({ zoom: map.getZoom() - CHASE_ZOOM_DELTA, pitch: 65 })
+    }
+    previousChaseRef.current = chase
+  }, [map, chase])
+
+  useEffect(() => {
+    if (!map) return
     map.setLayoutProperty('dry-run-aircraft', 'visibility', survey.traj.length ? 'visible' : 'none')
     const clearanceSource = map.getSource('dry-run-clearance') as mapboxgl.GeoJSONSource
     if (!survey.traj.length) {
@@ -459,7 +477,7 @@ export default function MapScene({
         })
       }
       if (chase && now - lastCamera > 100) {
-        map.jumpTo({ center: position, zoom: Math.max(map.getZoom(), 15), pitch: 75, bearing: p.heading * 180 / Math.PI })
+        map.jumpTo({ center: position, zoom: Math.max(map.getZoom(), 15 + CHASE_ZOOM_DELTA), pitch: CHASE_PITCH, bearing: p.heading * 180 / Math.PI })
         lastCamera = now
       }
       frame = requestAnimationFrame(tick)
