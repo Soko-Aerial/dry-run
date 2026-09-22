@@ -11,7 +11,7 @@ import type { Selection, Survey } from '@/lib/survey'
 
 const EMPTY_PATH = { type: 'FeatureCollection' as const, features: [] }
 const DEFAULT_AIRCRAFT_YAW = DEFAULT_AIRCRAFT_MAPBOX_YAW
-type AircraftPose = { lon: number; lat: number; altitude: number; heading: number }
+type AircraftPose = { lon: number; lat: number; clearance: number; heading: number }
 type AircraftModel = { uri: string; scale: number; yaw: number }
 
 function waypointModels(survey: Survey, threshold: number, selection: Selection | null) {
@@ -19,7 +19,7 @@ function waypointModels(survey: Survey, threshold: number, selection: Selection 
     uri: '/waypoint.glb',
     position: [wp.lon, wp.lat] as [number, number],
     featureProperties: {
-      altitude: wp.alt,
+      altitude: survey.waypointClearance[i],
       index: i,
       breach: survey.waypointClearance[i] < threshold,
       selected: selection?.kind === 'waypoint' && selection.index === i,
@@ -35,8 +35,8 @@ function placeAircraft(map: mapboxgl.Map, pose: AircraftPose, model: AircraftMod
   source.setModels({ aircraft: {
     uri: model.uri, position: [pose.lon, pose.lat],
     orientation: [0, 0, mapboxYaw(pose.heading, model.yaw)],
+    featureProperties: { altitude: pose.clearance },
   } })
-  map.setFeatureState({ source: 'dry-run-aircraft', sourceLayer: '', id: 'aircraft' }, { altitude: pose.altitude })
 }
 
 export default function MapScene({
@@ -108,7 +108,7 @@ export default function MapScene({
           layout: {
             'line-cap': 'round',
             'line-join': 'round',
-            'line-elevation-reference': 'sea',
+            'line-elevation-reference': 'ground',
             'line-z-offset': [
               'at-interpolated',
               ['*', ['line-progress'], ['-', ['length', ['get', 'elevation']], 1]],
@@ -130,7 +130,7 @@ export default function MapScene({
           id: 'dry-run-waypoint-stems', type: 'line', source: 'dry-run-waypoint-stems', slot: 'top',
           layout: {
             'line-cap': 'round',
-            'line-elevation-reference': 'sea',
+            'line-elevation-reference': 'ground',
             'line-z-offset': [
               'at-interpolated',
               ['*', ['line-progress'], ['-', ['length', ['get', 'elevation']], 1]],
@@ -153,7 +153,7 @@ export default function MapScene({
           id: 'dry-run-clearance', type: 'line', source: 'dry-run-clearance', slot: 'top',
           layout: {
             'line-cap': 'round',
-            'line-elevation-reference': 'sea',
+            'line-elevation-reference': 'ground',
             'line-z-offset': [
               'at-interpolated',
               ['*', ['line-progress'], ['-', ['length', ['get', 'elevation']], 1]],
@@ -169,7 +169,7 @@ export default function MapScene({
         instance.addLayer({
           id: 'dry-run-waypoints', type: 'model', source: 'dry-run-waypoints', slot: 'top',
           paint: {
-            'model-elevation-reference': 'sea',
+            'model-elevation-reference': 'ground',
             'model-translation': [0, 0, ['get', 'altitude']],
             'model-scale': [1.5, 1.5, 1.5],
             'model-color': [
@@ -190,14 +190,15 @@ export default function MapScene({
             uri: '/aircraft.glb',
             position: [survey.origin.lon + (first?.e ?? 0) / f.lon, survey.origin.lat + (first?.n ?? 0) / f.lat],
             orientation: [0, 0, mapboxYaw(first?.heading ?? 0, DEFAULT_AIRCRAFT_YAW)],
+            featureProperties: { altitude: first?.clearance ?? 0 },
           } },
         })
         instance.addLayer({
           id: 'dry-run-aircraft', type: 'model', source: 'dry-run-aircraft', slot: 'top',
           layout: { visibility: first ? 'visible' : 'none' },
           paint: {
-            'model-elevation-reference': 'sea',
-            'model-translation': [0, 0, ['feature-state', 'altitude']],
+            'model-elevation-reference': 'ground',
+            'model-translation': [0, 0, ['get', 'altitude']],
             'model-scale': [1.8, 1.8, 1.8],
             'model-type': 'location-indicator',
           },
@@ -257,7 +258,7 @@ export default function MapScene({
       return {
         type: 'Feature' as const,
         properties: {
-          elevation: [prev.alt, next.alt],
+          elevation: [prev.clearance ?? 0, next.clearance ?? 0],
           breach: Math.min(prev.clearance ?? Infinity, next.clearance ?? Infinity) < threshold,
           legIndex: prev.legIndex,
           selected: selection?.kind === 'leg' && selection.index === prev.legIndex,
@@ -280,7 +281,7 @@ export default function MapScene({
       features: survey.waypoints.map((wp, i) => ({
         type: 'Feature' as const,
         properties: {
-          elevation: [wp.alt - survey.waypointClearance[i], wp.alt],
+          elevation: [0, survey.waypointClearance[i]],
           breach: survey.waypointClearance[i] < threshold,
           selected: selection?.kind === 'waypoint' && selection.index === i,
         },
@@ -358,7 +359,7 @@ export default function MapScene({
       if (onDrop) { onDrop(e.lngLat.lat, e.lngLat.lng); return }
       const p = aircraftPositionRef.current
       if (p) {
-        const screen = map.project([p.lon, p.lat], p.altitude)
+        const screen = map.project([p.lon, p.lat], p.clearance)
         if (Math.hypot(e.point.x - screen.x, e.point.y - screen.y) < 25) {
           onSelect({ kind: 'vehicle' })
           return
@@ -411,7 +412,12 @@ export default function MapScene({
     const start = survey.traj[startIndex]
     const startLon = survey.origin.lon + start.e / f.lon
     const startLat = survey.origin.lat + start.n / f.lat
-    aircraftPositionRef.current = { lon: startLon, lat: startLat, altitude: start.alt, heading: start.heading }
+    aircraftPositionRef.current = {
+      lon: startLon,
+      lat: startLat,
+      clearance: start.clearance ?? 0,
+      heading: start.heading,
+    }
     placeAircraft(map, aircraftPositionRef.current, aircraftModelRef.current)
     let frame = 0
     let last = performance.now()
@@ -429,7 +435,12 @@ export default function MapScene({
       if (changed) { onTick(i); lastIndex = i }
       const p = survey.traj[i]
       const position: [number, number] = [survey.origin.lon + p.e / f.lon, survey.origin.lat + p.n / f.lat]
-      aircraftPositionRef.current = { lon: position[0], lat: position[1], altitude: p.alt, heading: p.heading }
+      aircraftPositionRef.current = {
+        lon: position[0],
+        lat: position[1],
+        clearance: p.clearance ?? 0,
+        heading: p.heading,
+      }
       if (changed) {
         placeAircraft(map, aircraftPositionRef.current, aircraftModelRef.current)
         clearanceSource.setData({
@@ -437,7 +448,7 @@ export default function MapScene({
           features: [{
             type: 'Feature',
             properties: {
-              elevation: [p.terrain ?? p.alt - (p.clearance ?? 0), p.alt],
+              elevation: [0, p.clearance ?? 0],
               breach: (p.clearance ?? Infinity) < threshold,
             },
             geometry: {

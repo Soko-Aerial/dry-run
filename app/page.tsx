@@ -179,6 +179,7 @@ export default function Page() {
       ({ coords }) => {
         const { latitude: lat, longitude: lon } = coords
         setFileName(`${lat.toFixed(5)}, ${lon.toFixed(5)}`)
+        setSurvey(null)
         setMissionId((n) => n + 1)
         setDropping(true)
         run(
@@ -232,6 +233,7 @@ export default function Page() {
             const f = e.target.files?.[0]
             if (!f) return
             setFileName(f.name)
+            setSurvey(null)
             setMissionId((n) => n + 1)
             run(parseMission(await f.text()), profile, threshold, { kind: 'mission' })
           }}
