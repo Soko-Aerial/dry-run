@@ -12,7 +12,7 @@ import type { Selection, Survey } from '@/lib/survey'
 const EMPTY_PATH = { type: 'FeatureCollection' as const, features: [] }
 const DEFAULT_AIRCRAFT_YAW = DEFAULT_AIRCRAFT_MAPBOX_YAW
 const CHASE_PITCH = 55
-const CHASE_ZOOM_DELTA = Math.log2(10 / 9)
+const CHASE_ZOOM_DELTA = 0.5
 type AircraftPose = { lon: number; lat: number; clearance: number; heading: number }
 type AircraftModel = { uri: string; scale: number; yaw: number }
 
@@ -440,7 +440,7 @@ export default function MapScene({
     let frame = 0
     let last = performance.now()
     let lastIndex = -1
-    let lastCamera = 0
+    let lastRenderedHead = -1
     const tick = (now: number) => {
       if (!Number.isFinite(headRef.current)) headRef.current = 0
       if (playing && survey.traj.length > 1 && sampleDt > 0) {
@@ -448,37 +448,46 @@ export default function MapScene({
         headRef.current = Math.min(survey.traj.length - 1, headRef.current + elapsed * speed / 1000 / sampleDt)
       }
       last = now
-      const i = Math.max(0, Math.min(survey.traj.length - 1, Math.floor(headRef.current)))
-      const changed = i !== lastIndex
-      if (changed) { onTick(i); lastIndex = i }
+      const head = Math.max(0, Math.min(survey.traj.length - 1, headRef.current))
+      const i = Math.floor(head)
+      if (i !== lastIndex) { onTick(i); lastIndex = i }
+      if (head === lastRenderedHead) {
+        frame = requestAnimationFrame(tick)
+        return
+      }
+      lastRenderedHead = head
       const p = survey.traj[i]
-      const position: [number, number] = [survey.origin.lon + p.e / f.lon, survey.origin.lat + p.n / f.lat]
+      const next = survey.traj[Math.min(i + 1, survey.traj.length - 1)]
+      const mix = head - i
+      const e = p.e + (next.e - p.e) * mix
+      const n = p.n + (next.n - p.n) * mix
+      const clearance = (p.clearance ?? 0) + ((next.clearance ?? 0) - (p.clearance ?? 0)) * mix
+      const headingDelta = Math.atan2(Math.sin(next.heading - p.heading), Math.cos(next.heading - p.heading))
+      const heading = p.heading + headingDelta * mix
+      const position: [number, number] = [survey.origin.lon + e / f.lon, survey.origin.lat + n / f.lat]
       aircraftPositionRef.current = {
         lon: position[0],
         lat: position[1],
-        clearance: p.clearance ?? 0,
-        heading: p.heading,
+        clearance,
+        heading,
       }
-      if (changed) {
-        placeAircraft(map, aircraftPositionRef.current, aircraftModelRef.current)
-        clearanceSource.setData({
-          type: 'FeatureCollection',
-          features: [{
-            type: 'Feature',
-            properties: {
-              elevation: [0, p.clearance ?? 0],
-              breach: (p.clearance ?? Infinity) < threshold,
-            },
-            geometry: {
-              type: 'LineString',
-              coordinates: [position, [position[0] + 0.5 / f.lon, position[1]]],
-            },
-          }],
-        })
-      }
-      if (chase && now - lastCamera > 100) {
-        map.jumpTo({ center: position, zoom: Math.max(map.getZoom(), 15 + CHASE_ZOOM_DELTA), pitch: CHASE_PITCH, bearing: p.heading * 180 / Math.PI })
-        lastCamera = now
+      placeAircraft(map, aircraftPositionRef.current, aircraftModelRef.current)
+      clearanceSource.setData({
+        type: 'FeatureCollection',
+        features: [{
+          type: 'Feature',
+          properties: {
+            elevation: [0, clearance],
+            breach: clearance < threshold,
+          },
+          geometry: {
+            type: 'LineString',
+            coordinates: [position, [position[0] + 0.5 / f.lon, position[1]]],
+          },
+        }],
+      })
+      if (chase) {
+        map.jumpTo({ center: position, zoom: Math.max(map.getZoom(), 15 + CHASE_ZOOM_DELTA), pitch: CHASE_PITCH, bearing: heading * 180 / Math.PI })
       }
       frame = requestAnimationFrame(tick)
     }
