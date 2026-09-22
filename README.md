@@ -4,19 +4,19 @@
 
 Check a drone route against real terrain.
 
-<img src="docs/ui-dark.png" alt="A drone route crossing alpine terrain with a NO-GO result" width="100%">
+![A drone route crossing alpine terrain with a NO-GO result](docs/ui-dark.png)
 
 ## See the risk
 
 Red is too low. Green is clear.
 
-<img src="docs/ui-selected.png" alt="A selected flight leg shown on the map and height chart" width="100%">
+![A selected flight leg shown on the map and height chart](docs/ui-selected.png)
 
 ## Fly the route
 
 Press play. Scrub the chart. Chase the drone.
 
-<img src="docs/ui-chase.png" alt="A chase view behind the drone" width="100%">
+![A chase view behind the drone](docs/ui-chase.png)
 
 ## Make a plan
 
@@ -24,7 +24,7 @@ Drop points on the map. Move them. Delete them.
 
 Each change gets a new **GO** or **NO-GO** check.
 
-<img src="docs/ui-light.png" alt="The app in light mode" width="100%">
+![The app in light mode](docs/ui-light.png)
 
 ## Run it
 
