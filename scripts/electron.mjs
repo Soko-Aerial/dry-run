@@ -2,6 +2,7 @@
 // build: bundle electron/ with the Mapbox token baked in. dev: build, then run against the Vite dev server.
 // start: run the built app. Main-process changes need a restart; the renderer hot-reloads.
 import { spawn } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import { build } from 'esbuild'
 import { createServer, loadEnv } from 'vite'
 import electron from 'electron'
@@ -28,6 +29,8 @@ if (mode !== 'build') {
   // Chromium refuses to run as root (WSL default) without this.
   const args = ['.', ...(process.getuid?.() === 0 ? ['--no-sandbox'] : [])]
   const env = { ...process.env, ...(server && { DRY_RUN_DEV_URL: server.resolvedUrls.local[0] }) }
+  // WSL: Mesa defaults to llvmpipe (CPU, ~2 fps playback). Its d3d12 driver reaches the real GPU.
+  if (existsSync('/dev/dxg')) env.GALLIUM_DRIVER ??= 'd3d12'
   spawn(electron, args, { stdio: 'inherit', env }).on('exit', async (code) => {
     await server?.close()
     process.exit(code ?? 0)

@@ -20,3 +20,16 @@ Dry run becomes an installed Electron app for Linux and Windows. No web deploy.
 3. MAVLink port to TypeScript, with the `test_bridge.py` cases ported. Verify against SITL.
 4. Packaging: electron-builder, `.exe` + `.AppImage`, file association.
 5. Measure against the budgets.
+
+## Measured (2026-10-05, WSL2 dev laptop, Quadro M2000M via WSL's d3d12 layer)
+
+| Budget | Result | |
+|---|---|---|
+| Window < 1 s | 0.85–1.0 s launch to usable UI; 1.0 s launch to a mission opened from the command line | met |
+| Map < 2 s on a warm cache | map canvas up ~1.2 s after the window on a GPU; check done 1.2 s after launch | met |
+| Check < 100 ms | edits re-check in 0.3–10 ms; first check on a mission 54–120 ms, almost all PNG decode of 4 terrain tiles | edits met; first open ≤ 20 ms over |
+| 60 fps playback | idle 54 fps; playback 12–20 fps | missed on this machine |
+
+Playback profile: Mapbox's own JS ~33% of the time, our React/app code ~8%, the rest waiting on the GPU. No long tasks. Turning off MSAA changed nothing. The limit is this 2015 GPU behind WSL's D3D12 translation, not app code. Re-measure on a field PC before optimising; the levers if it's slow there are Mapbox `pixelRatio`, and the classic `satellite-v9` style instead of Standard Satellite (no 3D lighting/landmarks).
+
+Packaged: AppImage 118 MB, `app.asar` 5 MB.
