@@ -46,6 +46,18 @@ pnpm test
 
 Want the flight math? Read [`DESIGN.md`](DESIGN.md).
 
+## Build installers
+
+```bash
+pnpm dist
+```
+
+Builds for the OS you run it on, into `release/`: `dry-run-<version>.AppImage` on Linux, `dry-run Setup <version>.exe` on Windows. The token in `MAPBOX_TOKEN` (env or `.env.local`) is baked in. Both register `.plan` and `.waypoints` files, so double-clicking one opens it in dry run.
+
+The Windows installer can't be built on Linux without Wine. Run the **Desktop builds** workflow from the GitHub Actions tab (or push a `v*` tag) to get both, after adding a `MAPBOX_TOKEN` repository secret.
+
+On Linux, `chmod +x` the AppImage and run it. It needs `fusermount3` (in the `fuse3` package, standard on Ubuntu desktops).
+
 ## Connect an ArduPilot vehicle
 
 The app talks MAVLink itself; nothing else to install. It listens on UDP `127.0.0.1:14550`, the port SITL and ground stations (Mission Planner, QGroundControl, MAVProxy) forward to. For a telemetry radio, let your ground station forward to that port.

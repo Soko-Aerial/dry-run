@@ -1,0 +1,35 @@
+# Builds the installers: run it from the Actions tab, or push a v* tag.
+# Windows needs a Windows runner: NSIS can't be built on Linux without Wine.
+# Needs a MAPBOX_TOKEN repository secret (the public pk. token baked into the app).
+name: Desktop builds
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm dist
+        env:
+          MAPBOX_TOKEN: ${{ secrets.MAPBOX_TOKEN }}
+      - uses: actions/upload-artifact@v5
+        with:
+          name: dry-run-${{ matrix.os }}
+          path: |
+            release/*.AppImage
+            release/*.exe
+          if-no-files-found: error

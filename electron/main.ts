@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, nativeTheme, net, protocol, shell } from 'electron'
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
-import { dirname, join, sep } from 'node:path'
+import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
+import { basename, dirname, join, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { openLink, type Link } from './mavlink'
 
@@ -12,6 +12,22 @@ const TILE = /^\/(\d+)\/(\d+)\/(\d+)$/
 // "unsafe" in swiftshader (untrusted content reaching a CPU renderer) doesn't apply.
 app.commandLine.appendSwitch('ignore-gpu-blocklist')
 app.commandLine.appendSwitch('enable-unsafe-swiftshader')
+
+// One window: opening a mission from the OS while running hands it to the existing instance.
+if (!app.requestSingleInstanceLock()) app.exit()
+
+/** The mission file in a command line (file association, "Open with"), read for the renderer. */
+async function missionFile(argv: string[]) {
+  const path = argv.find((arg) => !arg.startsWith('-') && /\.(plan|waypoints|txt|json)$/i.test(arg))
+  if (!path) return null
+  try {
+    // Missions are a few KB; refuse anything that clearly isn't one.
+    if ((await stat(path)).size > 10_000_000) return null
+    return { name: basename(path), text: await readFile(path, 'utf8') }
+  } catch {
+    return null
+  }
+}
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } },
@@ -108,6 +124,19 @@ app.whenReady().then(async () => {
     webPreferences: { preload: join(__dirname, 'preload.cjs') },
   })
   win.once('ready-to-show', () => win.show())
+  // Handed over once, so a renderer reload (or React StrictMode's double effect) doesn't reopen it.
+  let launchFile: ReturnType<typeof missionFile> | null = missionFile(process.argv.slice(1))
+  ipcMain.handle('open-file:launch', () => {
+    const file = launchFile
+    launchFile = null
+    return file
+  })
+  app.on('second-instance', async (_e, argv) => {
+    if (win.isMinimized()) win.restore()
+    win.focus()
+    const file = await missionFile(argv.slice(1))
+    if (file) win.webContents.send('open-file', file)
+  })
   // External links (Mapbox attribution) go to the system browser; the app window never navigates away.
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('https://')) shell.openExternal(url)

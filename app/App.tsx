@@ -1,4 +1,4 @@
-import { Fragment, lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { Fragment, lazy, Suspense, useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { Upload, PanelLeft, PanelRight, PanelBottom, MapPin } from 'lucide-react'
 import {
   ResizableHandle,
@@ -124,6 +124,23 @@ export default function App() {
       home: { lat, lon, alt: altAmsl }, waypoints: [], source: 'mavlink', warnings: [],
     }, 'Vehicle location')
   }, [mavlink.telemetry, loadVehicleMission])
+
+  function openMission(name: string, text: string) {
+    setFileName(name)
+    setSurvey(null)
+    setMissionId((n) => n + 1)
+    run(parseMission(text), profile, threshold, { kind: 'mission' })
+  }
+
+  // Files opened from the OS (double-click, "Open with"), at launch or while running.
+  const onOpenFile = useEffectEvent(({ name, text }: { name: string; text: string }) => {
+    try {
+      openMission(name, text)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  })
+  useEffect(() => window.dryRun.onOpenFile(onOpenFile), [])
 
   const downloadVehicleMission = useCallback(async () => {
     setDownloading(true)
@@ -291,11 +308,7 @@ export default function App() {
           className="hidden"
           onChange={async (e) => {
             const f = e.target.files?.[0]
-            if (!f) return
-            setFileName(f.name)
-            setSurvey(null)
-            setMissionId((n) => n + 1)
-            run(parseMission(await f.text()), profile, threshold, { kind: 'mission' })
+            if (f) openMission(f.name, await f.text())
           }}
         />
         <input

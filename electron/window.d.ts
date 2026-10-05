@@ -2,6 +2,8 @@
 interface Window {
   dryRun: {
     mapboxToken: string
+    /** Calls back with the launch file, then files opened while running. Returns an unsubscribe. */
+    onOpenFile(callback: (file: { name: string; text: string }) => void): () => void
     mavlink: {
       /** Resolves to an error message, or null once listening. */
       connect(): Promise<string | null>
