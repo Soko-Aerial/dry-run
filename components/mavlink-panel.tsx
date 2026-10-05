@@ -1,5 +1,3 @@
-'use client'
-
 import { Download, LocateFixed, Radio, Unplug } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'

@@ -1,7 +1,4 @@
-'use client'
-
-import { useState } from 'react'
-import dynamic from 'next/dynamic'
+import { lazy, Suspense, useState } from 'react'
 import { Check, X, Minus, RefreshCw, Trash2, Upload } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
@@ -20,7 +17,7 @@ import { cn } from '@/lib/utils'
 import { turnRadiusFor, type VehicleProfile } from '@/lib/trajectory'
 import type { Selection, Survey } from '@/lib/survey'
 
-const ModelPreview = dynamic(() => import('@/components/model-preview'), { ssr: false })
+const ModelPreview = lazy(() => import('@/components/model-preview'))
 
 const m = (v: number) => `${v.toFixed(0)} m`
 
@@ -298,7 +295,7 @@ export function Inspector({
         </div>
         {modelUrl && (
           <div className="bg-muted/40 border-border/60 mt-1 overflow-hidden rounded-md border">
-            <ModelPreview url={modelUrl} yawDeg={modelYaw} />
+            <Suspense><ModelPreview url={modelUrl} yawDeg={modelYaw} /></Suspense>
           </div>
         )}
       </Section>

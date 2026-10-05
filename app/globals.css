@@ -4,6 +4,25 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@font-face {
+    font-family: "Gerstner Programm";
+    src: url("./fonts/Gerstner_ProgrammRegular.woff2") format("woff2");
+    font-weight: 400;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Gerstner Programm";
+    src: url("./fonts/Gerstner_ProgrammMedium.woff2") format("woff2");
+    font-weight: 500;
+    font-display: swap;
+}
+
+/* Unlayered, so it overrides the self-referencing --font-sans Tailwind emits from @theme. */
+:root {
+    --font-sans: "Gerstner Programm", ui-sans-serif, system-ui, sans-serif;
+}
+
 @theme inline {
     --font-heading: var(--font-sans);
     --font-sans: var(--font-sans);

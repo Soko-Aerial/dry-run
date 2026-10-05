@@ -1,5 +1,3 @@
-'use client'
-
 import { useEffect, useRef, useState } from 'react'
 import mapboxgl from 'mapbox-gl'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
@@ -77,10 +75,8 @@ export default function MapScene({
   useEffect(() => {
     let active = true
     let instance: mapboxgl.Map | null = null
-    fetch('/api/map-token').then(async (res) => {
-      if (!res.ok) throw new Error('Mapbox token unavailable')
-      return (await res.json()) as { token: string }
-    }).then(({ token }) => {
+    Promise.resolve(import.meta.env.MAPBOX_TOKEN as string | undefined).then((token) => {
+      if (!token?.startsWith('pk.')) throw new Error('Mapbox token unavailable')
       if (!active || !containerRef.current) return
       mapboxgl.accessToken = token
       instance = new mapboxgl.Map({

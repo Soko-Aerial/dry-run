@@ -1,7 +1,4 @@
-'use client'
-
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
-import dynamic from 'next/dynamic'
+import { Fragment, lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { Upload, PanelLeft, PanelRight, PanelBottom, MapPin } from 'lucide-react'
 import {
   ResizableHandle,
@@ -25,7 +22,7 @@ import { useMavlink } from '@/components/use-mavlink'
 import { MavlinkActions, MavlinkConnect, MavlinkDownload, MavlinkPanel, MavlinkStatus } from '@/components/mavlink-panel'
 import { missionFromMavlink, type DownloadedMission } from '@/lib/mavlink'
 
-const MapScene = dynamic(() => import('@/components/MapScene'), { ssr: false })
+const MapScene = lazy(() => import('@/components/MapScene'))
 
 function PanelTitle({
   children,
@@ -42,7 +39,7 @@ function PanelTitle({
   )
 }
 
-export default function Page() {
+export default function App() {
   const mavlink = useMavlink()
   const [downloading, setDownloading] = useState(false)
   const [vehicleNotice, setVehicleNotice] = useState<string | null>(null)
@@ -422,6 +419,7 @@ export default function Page() {
               <div className="relative h-full">
                 {survey ? (
                   <>
+                    <Suspense>
                     <MapScene
                       livePosition={mavlink.telemetry?.connected ? mavlink.telemetry.position : null}
                       missionId={missionId}
@@ -440,6 +438,7 @@ export default function Page() {
                       onDrop={dropping && !chase ? dropAt : null}
                       onUnavailable={() => setError('Mapbox 3D map unavailable.')}
                     />
+                    </Suspense>
                     <div className="absolute top-2 right-2 flex items-center gap-1.5">
                     <Button
                       size="sm"

@@ -85,8 +85,8 @@ mission that clears by 94m look alarming.
 
 ## Stack
 
-Next.js App Router · react-three-fiber + drei · shadcn (`base-mira` preset,
-Base UI) · next-themes · React/`useState` · Tailwind · Vercel.
+Vite + React · react-three-fiber + drei · shadcn (`base-mira` preset,
+Base UI) · next-themes · React/`useState` · Tailwind · Electron (planned, see `docs/desktop-plan.md`).
 
 No geo libraries — `.plan` is `JSON.parse`, terrain-RGB decode is one line of
 arithmetic, the trajectory model is trig.

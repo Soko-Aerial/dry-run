@@ -56,9 +56,13 @@ function fetchTile(z: number, x: number, y: number) {
   const key = `${z}/${x}/${y}`
   const hit = tileCache.get(key)
   if (hit) return hit
-  const t = fetch(`/api/tiles/${key}`).then(async (res) =>
-    res.ok ? decodePng(await res.arrayBuffer()) : null,
-  )
+  // Data is authored to z14 (mapbox-terrain-dem-v1; terrain-rgb stopped updating in 2021).
+  // No token: null, and the caller falls back to synthetic terrain.
+  const token = import.meta.env?.MAPBOX_TOKEN
+  const t = (token
+    ? fetch(`https://api.mapbox.com/v4/mapbox.mapbox-terrain-dem-v1/${key}@2x.pngraw?access_token=${token}`)
+      .then(async (res) => (res.ok ? decodePng(await res.arrayBuffer()) : null))
+    : Promise.resolve(null))
   tileCache.set(key, t)
   return t
 }

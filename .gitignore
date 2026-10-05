@@ -13,10 +13,6 @@
 # testing
 /coverage
 
-# next.js
-/.next/
-/out/
-
 # production
 /build
 
@@ -38,7 +34,6 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
-next-env.d.ts
 
 # local Python tooling
 .venv/
@@ -46,6 +41,4 @@ __pycache__/
 *.pyc
 
 /dist/
-.vinext/
-.wrangler/
-/worker-configuration.d.ts
+/release/

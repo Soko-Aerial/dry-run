@@ -1,5 +1,3 @@
-'use client'
-
 import { Fragment } from 'react'
 import { Maximize2, ZoomIn, ZoomOut } from 'lucide-react'
 import { Button } from '@/components/ui/button'
