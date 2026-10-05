@@ -12,6 +12,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Button } from '@/components/ui/button'
 import { ButtonGroup, ButtonGroupSeparator } from '@/components/ui/button-group'
 import { cn } from '@/lib/utils'
@@ -82,26 +84,37 @@ function NumberField({
   // A plain controlled number input snapped an emptied field straight back to 0.
   const [draft, setDraft] = useState<string | null>(null)
 
+  const Control = result ? InputGroupInput : Input
+  const input = (
+    <Control
+      type="text"
+      inputMode="numeric"
+      aria-label={label}
+      value={draft ?? String(Math.round(value * 10) / 10)}
+      onChange={(e) => {
+        const v = e.target.value
+        setDraft(v)
+        const n = Number(v)
+        if (v.trim() !== '' && Number.isFinite(n)) onChange(n)
+      }}
+      onBlur={() => setDraft(null)}
+      className={cn('h-6 px-1.5 text-base tabular-nums', !result && 'w-20')}
+    />
+  )
+
   return (
-    <div className={cn(ROW, 'items-center', result && 'grid-cols-[minmax(0,1fr)_auto_auto]', className)}>
+    <div className={cn(ROW, 'items-center', result && 'grid-cols-[minmax(0,1fr)_auto]', className)}>
       <span className="text-muted-foreground truncate">
         {label} <span className="opacity-60">{unit}</span>
       </span>
-      <Input
-        type="text"
-        inputMode="numeric"
-        aria-label={label}
-        value={draft ?? String(Math.round(value * 10) / 10)}
-        onChange={(e) => {
-          const v = e.target.value
-          setDraft(v)
-          const n = Number(v)
-          if (v.trim() !== '' && Number.isFinite(n)) onChange(n)
-        }}
-        onBlur={() => setDraft(null)}
-        className="h-6 w-20 px-1.5 text-base tabular-nums"
-      />
-      {result}
+      {result ? (
+        <InputGroup className="h-6 w-24">
+          {input}
+          <InputGroupAddon align="inline-end" className="py-0 pr-1.5">
+            {result}
+          </InputGroupAddon>
+        </InputGroup>
+      ) : input}
     </div>
   )
 }
@@ -124,26 +137,30 @@ export function CheckControls({ threshold, setThreshold, onRerun, busy, survey, 
   const descent = Math.max(0, ...(survey?.demands.map((d) => -d.climbRateRequired) ?? []))
   const results = [
     { name: 'Min clearance', unit: 'm', value: threshold, onChange: setThreshold, pass: !terrainUnavailable && (survey?.minClearance ?? 0) >= threshold,
-      pending: pending ?? (terrainUnavailable ? 'Terrain unavailable' : null),
-      detail: survey ? `Lowest ${m(survey.minClearance)} on leg ${survey.minClearanceLeg + 1}` : '' },
-    { name: 'Max climb rate', unit: 'm/s', value: profile.maxClimbMs, onChange: (value: number) => setProfile({ ...profile, maxClimbMs: value }), pass: climb <= profile.maxClimbMs, pending,
-      detail: `Required ${climb.toFixed(1)} m/s` },
-    { name: 'Max descent rate', unit: 'm/s', value: profile.maxDescentMs, onChange: (value: number) => setProfile({ ...profile, maxDescentMs: value }), pass: descent <= profile.maxDescentMs, pending,
-      detail: `Required ${descent.toFixed(1)} m/s` },
+      pending: pending ?? (terrainUnavailable ? 'Terrain unavailable' : null) },
+    { name: 'Max climb rate', unit: 'm/s', value: profile.maxClimbMs, onChange: (value: number) => setProfile({ ...profile, maxClimbMs: value }), pass: climb <= profile.maxClimbMs, pending },
+    { name: 'Max descent rate', unit: 'm/s', value: profile.maxDescentMs, onChange: (value: number) => setProfile({ ...profile, maxDescentMs: value }), pass: descent <= profile.maxDescentMs, pending },
   ]
   const failed = results.some((r) => !r.pending && !r.pass)
   const incomplete = results.some((r) => r.pending)
   return (
-    <Section title="Checks">
+    <Section title="Checks" action={
+      <Tooltip>
+        <TooltipTrigger render={<Button size="icon" variant="secondary" aria-label="Re-run checks" disabled={busy || !survey?.waypoints.length} focusableWhenDisabled className="data-disabled:opacity-50" onClick={onRerun} />}>
+          <RefreshCw className={cn(busy && 'animate-spin')} />
+        </TooltipTrigger>
+        <TooltipContent>{busy ? 'Checking…' : 'Re-run checks'}</TooltipContent>
+      </Tooltip>
+    }>
       <p role="status" className={cn('mb-2 text-base', !pending && failed && 'text-destructive', !pending && !failed && !incomplete && 'text-emerald-500')}>
         {pending ?? (failed ? 'Checks failed' : incomplete ? 'Checks incomplete' : 'Checks passed')}
       </p>
-      <div className="divide-y divide-border/60">
+      <div>
         {results.map((result) => {
           const Icon = result.pending ? Minus : result.pass ? Check : X
           const state = result.pending ?? (result.pass ? 'Pass' : 'Fail')
           return (
-            <div key={result.name} className="py-2">
+            <div key={result.name}>
               <NumberField
                 label={result.name}
                 unit={result.unit}
@@ -151,15 +168,11 @@ export function CheckControls({ threshold, setThreshold, onRerun, busy, survey, 
                 onChange={result.onChange}
                 result={<Icon role="img" aria-label={state} className={cn('size-4 shrink-0', result.pending ? 'text-muted-foreground' : result.pass ? 'text-emerald-500' : 'text-destructive')} />}
               />
-              <p className="text-muted-foreground mt-0.5 text-base">{result.pending ?? result.detail}</p>
             </div>
           )
         })}
       </div>
       {survey?.mission.warnings.map((warning, index) => <p key={index} className="mt-1 text-base text-amber-600">{warning}</p>)}
-      <Button size="sm" variant="secondary" disabled={busy || !survey?.waypoints.length} onClick={onRerun} className="mt-2 h-6 w-full text-base">
-        {busy ? 'Checking…' : 'Re-run checks'}
-      </Button>
     </Section>
   )
 }
