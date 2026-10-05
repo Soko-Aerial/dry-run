@@ -8,40 +8,19 @@ export function useMavlink() {
 
   useEffect(() => {
     if (!enabled) return
-    const source = new EventSource('/api/mavlink')
-    let timeout: ReturnType<typeof setTimeout>
-    function unavailable(message: string) {
-      clearTimeout(timeout)
-      setTelemetry(null)
-      setError(message)
-    }
-    source.onmessage = (event) => {
-      try {
-        const data: Telemetry = JSON.parse(event.data)
-        setTelemetry(data)
-        setError(null)
-        clearTimeout(timeout)
-        // Hide cached telemetry if the browser's connection stalls without an error event.
-        timeout = setTimeout(() => unavailable('MAVLink telemetry stream timed out.'), 4000)
-      } catch {
-        unavailable('Invalid MAVLink telemetry received.')
-      }
-    }
-    source.addEventListener('bridge-error', (event) => {
-      try {
-        unavailable(JSON.parse((event as MessageEvent).data).error)
-      } catch {
-        unavailable('MAVLink bridge unavailable. Start it with pnpm mavlink.')
-      }
+    const { mavlink } = window.dryRun
+    let active = true
+    const unsubscribe = mavlink.onTelemetry((data) => {
+      setTelemetry(data)
+      setError(null)
     })
-    source.onerror = () => {
-      clearTimeout(timeout)
-      setTelemetry(null)
-      setError((current) => current ?? 'MAVLink stream disconnected. Reconnecting…')
-    }
+    mavlink.connect().then((message) => {
+      if (active && message) setError(message)
+    })
     return () => {
-      clearTimeout(timeout)
-      source.close()
+      active = false
+      unsubscribe()
+      mavlink.disconnect()
     }
   }, [enabled])
 

@@ -66,7 +66,7 @@ export function MavlinkStatus({ enabled, telemetry, error }: Pick<MavlinkPanelPr
   return (
     <span role="status" className={cn('flex items-center gap-1.5 text-base font-normal', enabled && live ? 'text-teal-500' : 'text-muted-foreground')}>
       <span className={cn('size-1.5 shrink-0 rounded-full', enabled && live ? 'bg-teal-500' : 'bg-muted-foreground')} />
-      {!enabled ? 'Disconnected' : live ? `System ${telemetry?.vehicle?.systemId} connected` : error ? 'Bridge offline' : telemetry?.heartbeatAge != null ? 'Signal lost' : 'Waiting for vehicle…'}
+      {!enabled ? 'Disconnected' : live ? `System ${telemetry?.vehicle?.systemId} connected` : error ? 'Connection error' : telemetry?.heartbeatAge != null ? 'Signal lost' : 'Waiting for vehicle…'}
     </span>
   )
 }

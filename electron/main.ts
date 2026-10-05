@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, nativeTheme, net, protocol, shell } from '
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { openLink, type Link } from './mavlink'
 
 const DIST = join(__dirname, '..', 'dist')
 const TILE = /^\/(\d+)\/(\d+)\/(\d+)$/
@@ -60,6 +61,42 @@ app.whenReady().then(async () => {
     await writeFile(`${file}.${process.pid}.tmp`, body)
     await rename(`${file}.${process.pid}.tmp`, file)
     return new Response(body, { headers })
+  })
+
+  // One MAVLink link for the app, opened on Connect and closed on Disconnect so port 14550
+  // is free for other tools. Calls are serialized: a Disconnect during a pending bind must win.
+  let link: Link | null = null
+  let telemetry: ReturnType<typeof setInterval> | undefined
+  let queue: Promise<unknown> = Promise.resolve()
+  const serial = <T>(f: () => Promise<T>) => (queue = queue.then(f, f)) as Promise<T>
+  const disconnect = async () => {
+    clearInterval(telemetry)
+    link?.close()
+    link = null
+  }
+  ipcMain.handle('mavlink:connect', (e) => serial(async () => {
+    try {
+      link ??= await openLink()
+    } catch (error) {
+      return (error as NodeJS.ErrnoException).code === 'EADDRINUSE'
+        ? 'UDP port 14550 is in use. Close other software listening on it and reconnect.'
+        : `MAVLink connection failed: ${(error as Error).message}`
+    }
+    const { bridge } = link
+    const push = () => { if (!e.sender.isDestroyed()) e.sender.send('mavlink:telemetry', bridge.snapshot()) }
+    clearInterval(telemetry)
+    telemetry = setInterval(push, 500)
+    push()
+    return null
+  }))
+  ipcMain.handle('mavlink:disconnect', () => serial(disconnect))
+  ipcMain.handle('mavlink:mission', async () => {
+    if (!link) return { error: 'Connect MAVLink first.' }
+    try {
+      return { mission: await link.bridge.download() }
+    } catch (error) {
+      return { error: (error as Error).message }
+    }
   })
 
   const win = new BrowserWindow({

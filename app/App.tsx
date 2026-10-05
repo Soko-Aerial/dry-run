@@ -20,7 +20,7 @@ import { Kbd } from '@/components/ui/kbd'
 import { cn } from '@/lib/utils'
 import { useMavlink } from '@/components/use-mavlink'
 import { MavlinkActions, MavlinkConnect, MavlinkDownload, MavlinkPanel, MavlinkStatus } from '@/components/mavlink-panel'
-import { missionFromMavlink, type DownloadedMission } from '@/lib/mavlink'
+import { missionFromMavlink } from '@/lib/mavlink'
 
 const MapScene = lazy(() => import('@/components/MapScene'))
 
@@ -130,10 +130,9 @@ export default function App() {
     setError(null)
     setVehicleNotice(null)
     try {
-      const response = await fetch('/api/mavlink/mission', { method: 'POST', signal: AbortSignal.timeout(27000) })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error ?? 'Mission download failed.')
-      const mission = missionFromMavlink(data as DownloadedMission)
+      const result = await window.dryRun.mavlink.downloadMission()
+      if ('error' in result) throw new Error(result.error)
+      const mission = missionFromMavlink(result.mission)
       if (!mission.waypoints.length) {
         setVehicleNotice('The vehicle has no navigable mission waypoints. Locate it to view the launch area.')
         return

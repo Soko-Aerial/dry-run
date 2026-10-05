@@ -35,11 +35,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 
-# local Python tooling
-.venv/
-__pycache__/
-*.pyc
-
 /dist/
 /release/
 /dist-electron/

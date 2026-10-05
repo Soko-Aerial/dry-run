@@ -48,39 +48,18 @@ Want the flight math? Read [`DESIGN.md`](DESIGN.md).
 
 ## Connect an ArduPilot vehicle
 
-The local bridge uses [uv](https://docs.astral.sh/uv/) and Python 3.12 or later. Its dependencies are pinned in `tools/mavlink/uv.lock`; `uv` creates the environment automatically.
+The app talks MAVLink itself; nothing else to install. It listens on UDP `127.0.0.1:14550`, the port SITL and ground stations (Mission Planner, QGroundControl, MAVProxy) forward to. For a telemetry radio, let your ground station forward to that port.
 
-Start SITL in one terminal. On the current WSL setup:
+Start SITL. On the current WSL setup:
 
 ```bash
 /root/tools/ardupilot-sitl/start.sh
 ```
 
-In another terminal, from this repository:
+In the inspector's **Vehicle** area, click **Connect MAVLink**. **Locate vehicle** loads terrain at its reported position and shows a teal live-position marker. **Download mission** imports the autopilot's mission into the terrain checks and selects the matching profile for Copter or Plane. The 3D aircraft and timeline remain the predicted mission playback; the teal marker is the live vehicle's map position.
 
-```bash
-pnpm mavlink
-```
-
-The bridge listens for MAVLink on UDP `127.0.0.1:14550` and exposes a loopback-only HTTP service on port `8765`. In development, Vite proxies it through `/api/mavlink`; browser clients share the bridge's single MAVLink connection. Do not run another UDP listener (such as the earlier telemetry check) on port `14550` at the same time.
-
-In the inspector’s **Vehicle** area, click **Connect MAVLink**. **Locate vehicle** loads terrain at its reported position and shows a teal live-position marker. **Download mission** imports the autopilot's mission into the terrain checks and selects the matching profile for Copter or Plane. The 3D aircraft and timeline remain the predicted mission playback; the teal marker is the live vehicle's map position.
-
-Telemetry streams over Server-Sent Events from the bridge through the Vite dev proxy to the browser, at up to two snapshots per second. A missing heartbeat for five seconds shows **Signal lost** and removes live data. Silent or broken streams clear cached telemetry; the browser automatically reconnects when the bridge returns. **Disconnect** closes this browser's stream; it does not stop SITL or disconnect other browser clients. Mission downloads remain HTTP POST requests.
+Telemetry updates twice a second. A missing heartbeat for five seconds shows **Signal lost** and removes live data. **Disconnect** closes the UDP port so other tools can use it. If another program already holds port `14550`, Connect says so.
 
 Mission download currently supports ArduPilot, `MISSION_ITEM_INT`, and up to 512 mission items, with retries and a 20-second transfer deadline. ArduPilot item zero supplies home when `HOME_POSITION` is unavailable. Relative altitudes use the autopilot home elevation; imported files continue to use terrain-derived launch elevation. Unknown coordinate frames fail the download rather than being guessed. Existing mission-parser warnings about omitted commands still apply.
 
-This first integration reads telemetry and downloads missions. Mission upload and flight commands are not exposed by the bridge.
-
-For an alternate local MAVLink transport:
-
-```bash
-pnpm mavlink --connection tcp:127.0.0.1:5762
-```
-
-Stop the bridge with Ctrl+C. Restart it with the same command. To run the bridge protocol tests:
-
-```bash
-uv run --locked --project tools/mavlink python -m unittest discover -s tools/mavlink -p 'test_*.py'
-pnpm test
-```
+This integration reads telemetry and downloads missions. Mission upload and flight commands are not exposed. The bridge lives in `electron/mavlink.ts`; `pnpm test` covers it, including a UDP round trip against a fake autopilot.
