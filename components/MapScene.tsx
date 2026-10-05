@@ -89,8 +89,13 @@ export default function MapScene({
         projection: 'mercator',
         antialias: true,
       })
+      // Startup timing, read by DevTools or a test harness (docs/desktop-plan.md).
+      performance.mark('map:create')
+      instance.once('render', () => performance.mark('map:first-render'))
+      instance.once('idle', () => performance.mark('map:idle'))
       instance.on('style.load', () => {
         if (!instance || !active) return
+        performance.mark('map:style')
         instance.addSource('dry-run-dem', {
           type: 'raster-dem', url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
           tileSize: 512, maxzoom: 14,

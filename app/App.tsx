@@ -22,7 +22,10 @@ import { useMavlink } from '@/components/use-mavlink'
 import { MavlinkActions, MavlinkConnect, MavlinkDownload, MavlinkPanel, MavlinkStatus } from '@/components/mavlink-panel'
 import { missionFromMavlink } from '@/lib/mavlink'
 
-const MapScene = lazy(() => import('@/components/MapScene'))
+// Fetched at launch, not on first render: Mapbox GL is 1.8 MB to parse, and this
+// overlaps it with reading the mission and the first terrain check.
+const mapScene = import('@/components/MapScene')
+const MapScene = lazy(() => mapScene)
 
 function PanelTitle({
   children,

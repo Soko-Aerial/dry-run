@@ -25,11 +25,16 @@ Dry run becomes an installed Electron app for Linux and Windows. No web deploy.
 
 | Budget | Result | |
 |---|---|---|
-| Window < 1 s | 0.85–1.0 s launch to usable UI; 1.0 s launch to a mission opened from the command line | met |
-| Map < 2 s on a warm cache | map canvas up ~1.2 s after the window on a GPU; check done 1.2 s after launch | met |
+| Window < 1 s | 0.85–1.2 s from launch to usable UI, including a mission opened from the command line | met, just |
+| Map < 2 s on a warm cache | style loaded ~2.0 s after launch; Mapbox `idle` (map fully drawn) 6.2–8.4 s | **missed on this machine** |
 | Check < 100 ms | edits re-check in 0.3–10 ms; first check on a mission 54–120 ms, almost all PNG decode of 4 terrain tiles | edits met; first open ≤ 20 ms over |
-| 60 fps playback | idle 54 fps; playback 12–20 fps | missed on this machine |
+| 60 fps playback | idle 54 fps; playback 12–20 fps | **missed on this machine** |
 
-Playback profile: Mapbox's own JS ~33% of the time, our React/app code ~8%, the rest waiting on the GPU. No long tasks. Turning off MSAA changed nothing. The limit is this 2015 GPU behind WSL's D3D12 translation, not app code. Re-measure on a field PC before optimising; the levers if it's slow there are Mapbox `pixelRatio`, and the classic `satellite-v9` style instead of Standard Satellite (no 3D lighting/landmarks).
+Both misses are the GPU, not app code, and this machine's GPU path is unrepresentative:
+
+- **Map startup:** a Chromium trace shows the renderer blocked 3.2 s of a 6.8 s startup waiting on the GPU process (`GetProgramiv`: Mapbox shader compiles), which runs WebGL → ANGLE → GL → Mesa d3d12 → D3D12. No tiles touch the network: Mapbox serves them from its own Cache Storage. Swapping Standard Satellite for classic `satellite-v9` saved 2–4 s but not enough to hit the budget, so the style was kept. The one app-side fix, starting the Mapbox chunk download at launch, landed; check-to-map-create is now a steady ~0.6 s.
+- **Playback:** Mapbox's own JS ~33% of the time, our React/app code ~8%, the rest waiting on the GPU. No long tasks. Turning off MSAA changed nothing.
+
+**Next:** run `pnpm build && pnpm start` (or the packaged app) on a real Windows and Linux field PC and read the `map:*` performance marks in DevTools. Native drivers compile shaders much faster, and Chromium caches shader binaries between launches. If it's still slow there, the levers are Mapbox `pixelRatio`, `satellite-v9`, and hiding Standard's 3D landmarks and POIs.
 
 Packaged: AppImage 118 MB, `app.asar` 5 MB.
