@@ -304,7 +304,8 @@ function ClearanceProfile({
       {hoverPt && (
         <div
           className="bg-popover text-popover-foreground border-border pointer-events-none absolute top-2 rounded-sm border px-2 py-1 text-[12px] whitespace-nowrap tabular-nums shadow-sm"
-          style={{ left: Math.min(w - 150, Math.max(0, x(hoverPt.s!) + 8)) }}
+          // Right half: hang off the cursor's left side so it never overflows the chart.
+          style={x(hoverPt.s!) > w / 2 ? { right: w - x(hoverPt.s!) + 8 } : { left: x(hoverPt.s!) + 8 }}
         >
           <div>{(hoverPt.s! / 1000).toFixed(2)} km on leg {hoverPt.legIndex + 1}</div>
           <div className="text-muted-foreground">
