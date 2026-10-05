@@ -14,8 +14,6 @@ const bridge = (path: string) => ({
 
 export default defineConfig({
   base: './',
-  // MAPBOX_TOKEN from .env.local is baked into the build; it's a public pk. token.
-  envPrefix: ['VITE_', 'MAPBOX_'],
   plugins: [react()],
   resolve: { alias: { '@': fileURLToPath(new URL('.', import.meta.url)) } },
   server: {

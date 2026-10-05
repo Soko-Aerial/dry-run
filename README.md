@@ -36,7 +36,7 @@ echo 'MAPBOX_TOKEN=pk.your_token' > .env.local
 pnpm dev
 ```
 
-Open `http://localhost:5173`.
+The desktop app opens. The token is baked in at build time; to override it on a machine, put `{"mapboxToken": "pk.…"}` in `settings.json` in the app's user data folder (`~/.config/dry-run` on Linux, `%APPDATA%\dry-run` on Windows). Terrain tiles are cached in the same folder, so areas you've checked once load offline.
 
 Drop in an ArduPilot `.waypoints` file or a QGroundControl `.plan` file. Try one from [`samples/`](samples/).
 

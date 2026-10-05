@@ -2,10 +2,11 @@
   "name": "dry-run",
   "version": "0.1.0",
   "private": true,
+  "main": "dist-electron/main.cjs",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit && vite build",
-    "preview": "vite preview",
+    "dev": "node scripts/electron.mjs dev",
+    "build": "tsc --noEmit && vite build && node scripts/electron.mjs build",
+    "start": "node scripts/electron.mjs start",
     "lint": "eslint",
     "test": "tsx lib/trajectory.test.ts && tsx lib/mission.test.ts && tsx lib/png.test.mts && tsx lib/model-yaw.test.ts && tsx lib/mavlink.test.ts",
     "mavlink": "bash tools/mavlink/start.sh"
@@ -33,6 +34,8 @@
     "@types/react-dom": "^19",
     "@types/three": "^0.185.4",
     "@vitejs/plugin-react": "^6.1.1",
+    "electron": "44.5.1",
+    "esbuild": "0.28.2",
     "eslint": "^9",
     "eslint-plugin-react-hooks": "7.1.1",
     "tailwindcss": "^4",

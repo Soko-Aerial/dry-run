@@ -75,7 +75,7 @@ export default function MapScene({
   useEffect(() => {
     let active = true
     let instance: mapboxgl.Map | null = null
-    Promise.resolve(import.meta.env.MAPBOX_TOKEN as string | undefined).then((token) => {
+    Promise.resolve(window.dryRun.mapboxToken).then((token) => {
       if (!token?.startsWith('pk.')) throw new Error('Mapbox token unavailable')
       if (!active || !containerRef.current) return
       mapboxgl.accessToken = token
