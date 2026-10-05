@@ -115,15 +115,23 @@ app.whenReady().then(async () => {
     }
   })
 
+  // VS Code-style title bar: the app header is the title bar, the OS draws only the window
+  // buttons over its right end (h-9 = 36 px). Colours follow the app theme, not the OS.
+  const titleBar = (dark: boolean) => ({
+    height: 36, color: dark ? '#0a0a0a' : '#ffffff', symbolColor: dark ? '#fafafa' : '#0a0a0a',
+  })
   const win = new BrowserWindow({
     width: 1440,
     height: 900,
     show: false,
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#0a0a0a' : '#ffffff',
+    titleBarStyle: 'hidden',
+    titleBarOverlay: titleBar(nativeTheme.shouldUseDarkColors),
     autoHideMenuBar: true,
     webPreferences: { preload: join(__dirname, 'preload.cjs') },
   })
   win.once('ready-to-show', () => win.show())
+  ipcMain.on('title-bar-theme', (_e, dark: boolean) => win.setTitleBarOverlay(titleBar(dark)))
   // Handed over once, so a renderer reload (or React StrictMode's double effect) doesn't reopen it.
   let launchFile: ReturnType<typeof missionFile> | null = missionFile(process.argv.slice(1))
   ipcMain.handle('open-file:launch', () => {

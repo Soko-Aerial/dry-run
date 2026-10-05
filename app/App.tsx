@@ -303,7 +303,8 @@ export default function App() {
   return (
     <div className="bg-background flex h-full flex-col">
       {/* top bar */}
-      <header className="border-border/60 flex h-9 shrink-0 items-center gap-2 border-b px-2">
+      <header className="title-bar border-border/60 flex shrink-0 items-center gap-2 border-b px-2">
+        <span className="text-base font-medium select-none">dry run</span>
         <input
           ref={fileRef}
           type="file"
