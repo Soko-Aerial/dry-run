@@ -10,35 +10,40 @@ export function useMavlink() {
 
   useEffect(() => {
     if (!enabled) return
-    let active = true
-    let timer: ReturnType<typeof setTimeout>
-    let controller: AbortController
-    async function poll() {
-      controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 3000)
+    const source = new EventSource('/api/mavlink')
+    let timeout: ReturnType<typeof setTimeout>
+    function unavailable(message: string) {
+      clearTimeout(timeout)
+      setTelemetry(null)
+      setError(message)
+    }
+    source.onmessage = (event) => {
       try {
-        const response = await fetch('/api/mavlink', { cache: 'no-store', signal: controller.signal })
-        const data = await response.json()
-        if (!response.ok) throw new Error(data.error ?? 'MAVLink connection unavailable.')
-        if (active) {
-          setTelemetry(data)
-          setError(null)
-        }
-      } catch (e) {
-        if (active) {
-          setTelemetry(null)
-          setError(e instanceof Error && e.name !== 'AbortError' ? e.message : 'MAVLink connection timed out.')
-        }
-      } finally {
+        const data: Telemetry = JSON.parse(event.data)
+        setTelemetry(data)
+        setError(null)
         clearTimeout(timeout)
-        if (active) timer = setTimeout(poll, 500)
+        // Hide cached telemetry if the browser's connection stalls without an error event.
+        timeout = setTimeout(() => unavailable('MAVLink telemetry stream timed out.'), 4000)
+      } catch {
+        unavailable('Invalid MAVLink telemetry received.')
       }
     }
-    void poll()
+    source.addEventListener('bridge-error', (event) => {
+      try {
+        unavailable(JSON.parse((event as MessageEvent).data).error)
+      } catch {
+        unavailable('MAVLink bridge unavailable. Start it with pnpm mavlink.')
+      }
+    })
+    source.onerror = () => {
+      clearTimeout(timeout)
+      setTelemetry(null)
+      setError((current) => current ?? 'MAVLink stream disconnected. Reconnecting…')
+    }
     return () => {
-      active = false
-      clearTimeout(timer)
-      controller?.abort()
+      clearTimeout(timeout)
+      source.close()
     }
   }, [enabled])
 

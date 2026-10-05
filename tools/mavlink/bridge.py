@@ -6,6 +6,7 @@ from copy import deepcopy
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import math
+import select
 from queue import Queue, Empty
 from threading import Lock, Thread
 import time
@@ -14,6 +15,7 @@ from pymavlink import mavutil
 
 STALE_SECONDS = 5
 MISSION_TIMEOUT = 20
+STREAM_INTERVAL = 0.5
 
 
 class Bridge:
@@ -182,6 +184,31 @@ class Bridge:
 
 
 class Handler(BaseHTTPRequestHandler):
+    def stream_telemetry(self):
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/event-stream')
+        self.send_header('Cache-Control', 'no-store, no-transform')
+        self.send_header('X-Accel-Buffering', 'no')
+        self.end_headers()
+        # Bound slow-client writes; don't retain queues of old telemetry.
+        self.connection.settimeout(3)
+        try:
+            self.wfile.write(b'retry: 2000\n\n')
+            while True:
+                started = time.monotonic()
+                body = json.dumps(self.server.bridge.snapshot(), allow_nan=False).encode()
+                self.wfile.write(b'data: ' + body + b'\n\n')
+                self.wfile.flush()
+                # Wake immediately on client disconnect, otherwise send the next snapshot.
+                # Regular snapshots also expire stale fields when no MAVLink packets arrive.
+                if select.select([self.connection], [], [],
+                                 max(0, STREAM_INTERVAL - (time.monotonic() - started)))[0]:
+                    break
+        except OSError:
+            pass
+        finally:
+            self.close_connection = True
+
     def respond(self, status, payload):
         body = json.dumps(payload, allow_nan=False).encode()
         self.send_response(status)
@@ -205,7 +232,7 @@ class Handler(BaseHTTPRequestHandler):
         if not self.local_request():
             return
         if self.path == '/telemetry':
-            self.respond(200, self.server.bridge.snapshot())
+            self.stream_telemetry()
         else:
             self.respond(404, dict(error='Not found'))
 
