@@ -1,0 +1,6 @@
+[project]
+name = "dry-run-mavlink"
+version = "0.1.0"
+description = "Local MAVLink telemetry and mission-download bridge for dry run"
+requires-python = ">=3.12"
+dependencies = ["pymavlink==2.4.50"]

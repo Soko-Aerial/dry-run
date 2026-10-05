@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import dynamic from 'next/dynamic'
-import { RefreshCw, Trash2, Upload } from 'lucide-react'
+import { Check, X, Minus, RefreshCw, Trash2, Upload } from 'lucide-react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Select,
@@ -14,7 +14,6 @@ import {
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { ButtonGroup, ButtonGroupSeparator } from '@/components/ui/button-group'
-import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { turnRadiusFor, type VehicleProfile } from '@/lib/trajectory'
 import type { Selection, Survey } from '@/lib/survey'
@@ -25,12 +24,15 @@ const m = (v: number) => `${v.toFixed(0)} m`
 
 // One property row shape everywhere: muted label in a fixed column, value
 // left-aligned in the next, so values line up down the whole panel.
-const ROW = 'grid grid-cols-[minmax(0,9.5rem)_1fr] gap-2 py-[3px] text-xs'
+const ROW = 'grid grid-cols-[minmax(0,9.5rem)_1fr] gap-2 py-[3px] text-base'
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children, action }: { title: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
     <div className="border-border/60 border-b py-2">
-      <div className="px-3 pb-1.5 text-[11px] font-medium">{title}</div>
+      <div className="flex items-center gap-2 px-3 pb-1.5 text-base font-medium">
+        {title}
+        {action && <span className="ml-auto">{action}</span>}
+      </div>
       <div className="px-3">{children}</div>
     </div>
   )
@@ -66,7 +68,11 @@ function NumberField({
   unit,
   value,
   onChange,
+  className,
+  result,
 }: {
+  result?: React.ReactNode
+  className?: string
   label: string
   unit: string
   value: number
@@ -77,13 +83,14 @@ function NumberField({
   const [draft, setDraft] = useState<string | null>(null)
 
   return (
-    <div className={cn(ROW, 'items-center')}>
+    <div className={cn(ROW, 'items-center', result && 'grid-cols-[minmax(0,1fr)_auto_auto]', className)}>
       <span className="text-muted-foreground truncate">
         {label} <span className="opacity-60">{unit}</span>
       </span>
       <Input
         type="text"
         inputMode="numeric"
+        aria-label={label}
         value={draft ?? String(Math.round(value * 10) / 10)}
         onChange={(e) => {
           const v = e.target.value
@@ -92,13 +99,75 @@ function NumberField({
           if (v.trim() !== '' && Number.isFinite(n)) onChange(n)
         }}
         onBlur={() => setDraft(null)}
-        className="h-6 w-20 px-1.5 text-xs tabular-nums"
+        className="h-6 w-20 px-1.5 text-base tabular-nums"
       />
+      {result}
     </div>
   )
 }
 
+export function CheckControls({ threshold, setThreshold, onRerun, busy, survey, profile, setProfile }: {
+  threshold: number
+  setThreshold: (value: number) => void
+  onRerun: () => void
+  busy: boolean
+  survey: Survey | null
+  profile: VehicleProfile
+  setProfile: (profile: VehicleProfile) => void
+}) {
+  const checked = survey !== null && survey.verdict !== null
+  const stale = checked && (threshold !== survey.checkSettings.threshold ||
+    JSON.stringify(profile) !== JSON.stringify(survey.checkSettings.profile))
+  const pending = busy ? 'Checking…' : !checked ? 'Not checked' : stale ? 'Needs recheck' : null
+  const terrainUnavailable = survey?.grid.synthetic || survey?.grid.suspect
+  const climb = Math.max(0, ...(survey?.demands.map((d) => d.climbRateRequired) ?? []))
+  const descent = Math.max(0, ...(survey?.demands.map((d) => -d.climbRateRequired) ?? []))
+  const results = [
+    { name: 'Min clearance', unit: 'm', value: threshold, onChange: setThreshold, pass: !terrainUnavailable && (survey?.minClearance ?? 0) >= threshold,
+      pending: pending ?? (terrainUnavailable ? 'Terrain unavailable' : null),
+      detail: survey ? `Lowest ${m(survey.minClearance)} on leg ${survey.minClearanceLeg + 1}` : '' },
+    { name: 'Max climb rate', unit: 'm/s', value: profile.maxClimbMs, onChange: (value: number) => setProfile({ ...profile, maxClimbMs: value }), pass: climb <= profile.maxClimbMs, pending,
+      detail: `Required ${climb.toFixed(1)} m/s` },
+    { name: 'Max descent rate', unit: 'm/s', value: profile.maxDescentMs, onChange: (value: number) => setProfile({ ...profile, maxDescentMs: value }), pass: descent <= profile.maxDescentMs, pending,
+      detail: `Required ${descent.toFixed(1)} m/s` },
+  ]
+  const failed = results.some((r) => !r.pending && !r.pass)
+  const incomplete = results.some((r) => r.pending)
+  return (
+    <Section title="Checks">
+      <p role="status" className={cn('mb-2 text-base', !pending && failed && 'text-destructive', !pending && !failed && !incomplete && 'text-emerald-500')}>
+        {pending ?? (failed ? 'Checks failed' : incomplete ? 'Checks incomplete' : 'Checks passed')}
+      </p>
+      <div className="divide-y divide-border/60">
+        {results.map((result) => {
+          const Icon = result.pending ? Minus : result.pass ? Check : X
+          const state = result.pending ?? (result.pass ? 'Pass' : 'Fail')
+          return (
+            <div key={result.name} className="py-2">
+              <NumberField
+                label={result.name}
+                unit={result.unit}
+                value={result.value}
+                onChange={result.onChange}
+                result={<Icon role="img" aria-label={state} className={cn('size-4 shrink-0', result.pending ? 'text-muted-foreground' : result.pass ? 'text-emerald-500' : 'text-destructive')} />}
+              />
+              <p className="text-muted-foreground mt-0.5 text-base">{result.pending ?? result.detail}</p>
+            </div>
+          )
+        })}
+      </div>
+      {survey?.mission.warnings.map((warning, index) => <p key={index} className="mt-1 text-base text-amber-600">{warning}</p>)}
+      <Button size="sm" variant="secondary" disabled={busy || !survey?.waypoints.length} onClick={onRerun} className="mt-2 h-6 w-full text-base">
+        {busy ? 'Checking…' : 'Re-run checks'}
+      </Button>
+    </Section>
+  )
+}
+
 export function Inspector({
+  vehicleConnection,
+  connectionActions,
+  vehicleActions,
   kind,
   setKind,
   modelName,
@@ -113,10 +182,10 @@ export function Inspector({
   profile,
   setProfile,
   threshold,
-  setThreshold,
-  onRerun,
-  busy,
 }: {
+  vehicleConnection: React.ReactNode
+  connectionActions: React.ReactNode
+  vehicleActions: React.ReactNode
   kind: 'fixedwing' | 'multirotor'
   setKind: (k: 'fixedwing' | 'multirotor') => void
   modelName: string | null
@@ -131,31 +200,28 @@ export function Inspector({
   profile: VehicleProfile
   setProfile: (p: VehicleProfile) => void
   threshold: number
-  setThreshold: (v: number) => void
-  onRerun: () => void
-  busy: boolean
 }) {
   const sel = selection ?? { kind: 'mission' as const }
 
   const vehicle = (
     <>
-      <Section title="Vehicle">
+      <Section title="Vehicle" action={vehicleActions}>
         <div className={cn(ROW, 'items-center')}>
           <span className="text-muted-foreground truncate">Type</span>
           <Select
             value={kind}
             onValueChange={(v) => setKind(v as 'fixedwing' | 'multirotor')}
           >
-            <SelectTrigger size="sm" className="h-6 w-full px-2 text-xs">
+            <SelectTrigger size="sm" className="h-6 w-full px-2 text-base">
               <SelectValue>
                 {(v: string) => (v === 'fixedwing' ? 'Fixed-wing' : 'Multirotor')}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="fixedwing" className="text-xs">
+              <SelectItem value="fixedwing" className="text-base">
                 Fixed-wing
               </SelectItem>
-              <SelectItem value="multirotor" className="text-xs">
+              <SelectItem value="multirotor" className="text-base">
                 Multirotor
               </SelectItem>
             </SelectContent>
@@ -166,8 +232,6 @@ export function Inspector({
             ['cruiseMs', 'Cruise speed', 'm/s'],
             ['maxBankDeg', 'Max bank', '°'],
             ['turnRadiusM', 'Turn radius', 'm'],
-            ['maxClimbMs', 'Max climb', 'm/s'],
-            ['maxDescentMs', 'Max descent', 'm/s'],
           ] as const
         ).map(([key, label, unit]) => (
           <NumberField
@@ -194,7 +258,7 @@ export function Inspector({
               </span>
               <ButtonGroup className="ml-auto shrink-0">
                 <Button
-                  size="icon-sm"
+                  size="icon"
                   variant="secondary"
                   aria-label="Replace model"
                   onClick={onPickModel}
@@ -203,7 +267,7 @@ export function Inspector({
                 </Button>
                 <ButtonGroupSeparator />
                 <Button
-                  size="icon-sm"
+                  size="icon"
                   variant="secondary"
                   aria-label="Remove model"
                   onClick={onClearModel}
@@ -225,23 +289,10 @@ export function Inspector({
           </div>
         )}
       </Section>
-      <Section title="Check">
-        <NumberField
-          label="Min clearance"
-          unit="m"
-          value={threshold}
-          onChange={setThreshold}
-        />
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={busy}
-          onClick={onRerun}
-          className="mt-1 h-6 w-full text-xs"
-        >
-          {busy ? 'Sampling terrain…' : 'Re-run survey'}
-        </Button>
+      <Section title="MAVLink Connection" action={connectionActions}>
+        {vehicleConnection}
       </Section>
+
     </>
   )
 
@@ -259,7 +310,7 @@ export function Inspector({
         {sel.kind === 'mission' && survey.verdict === null && (
           <>
             <Section title="Site">
-              <p className="text-muted-foreground pb-1 text-xs">
+              <p className="text-muted-foreground pb-1 text-base">
                 Terrain loaded, no path yet. Drop two waypoints to get a verdict.
               </p>
               <Field label="Waypoints" value={survey.waypoints.length} />
@@ -271,26 +322,6 @@ export function Inspector({
 
         {sel.kind === 'mission' && survey.verdict !== null && (
           <>
-            <Section title="Verdict">
-              <div className="flex items-center gap-2 pb-1">
-                <Badge
-                  variant={survey.verdict === 'GO' ? 'secondary' : 'destructive'}
-                  className="rounded-sm px-1.5 text-[11px]"
-                >
-                  {survey.verdict}
-                </Badge>
-                <span className="text-muted-foreground text-xs">
-                  {survey.verdict === 'GO'
-                    ? 'no terrain conflict'
-                    : `${survey.issues.length} issue(s)`}
-                </span>
-              </div>
-              <ul className="text-destructive space-y-1 text-xs">
-                {survey.issues.map((i, n) => (
-                  <li key={n}>• {i}</li>
-                ))}
-              </ul>
-            </Section>
             <Section title="Mission">
               <Field label="Source" value={survey.mission.source} />
               <Field label="Waypoints" value={survey.waypoints.length} />
@@ -301,7 +332,7 @@ export function Inspector({
               />
               <Field
                 label="Min clearance"
-                value={`${m(survey.minClearance)} · leg ${survey.minClearanceLeg + 1}`}
+                value={`${m(survey.minClearance)} on leg ${survey.minClearanceLeg + 1}`}
                 tone={survey.minClearance < threshold ? 'bad' : 'good'}
               />
             </Section>
@@ -314,10 +345,10 @@ export function Inspector({
         {sel.kind === 'terrain' && (
           <Section title="Terrain">
             {survey.grid.suspect && (
-              <p className="text-destructive pb-1 text-xs">{survey.grid.suspect}</p>
+              <p className="text-destructive pb-1 text-base">{survey.grid.suspect}</p>
             )}
             {survey.grid.synthetic && (
-              <p className="pb-1 text-xs text-amber-500">
+              <p className="pb-1 text-base text-amber-500">
                 Synthetic terrain — no Mapbox token. Heights are fake.
               </p>
             )}
@@ -328,7 +359,7 @@ export function Inspector({
             <Field label="Lowest" value={m(survey.lowestTerrain)} />
             <Field label="Launch elevation" value={m(survey.launchAmsl)} />
             <Field label="Area" value="route ±550 m" />
-            <Field label="Tiles" value={`z${survey.grid.z} · ${survey.grid.width}×${survey.grid.height} px`} />
+            <Field label="Tiles" value={`z${survey.grid.z}, ${survey.grid.width}×${survey.grid.height} px`} />
           </Section>
         )}
 
@@ -360,7 +391,7 @@ export function Inspector({
               variant="secondary"
               disabled={survey.waypoints.length <= 2}
               onClick={() => onRemoveWaypoint(sel.index)}
-              className="mt-1.5 h-6 w-full text-xs"
+              className="mt-1.5 h-6 w-full text-base"
             >
               <Trash2 />
               Remove waypoint

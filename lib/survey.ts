@@ -3,6 +3,7 @@
  * Everything here is derived from data already fetched. No extra requests.
  */
 import { parseMission, toAmsl, toEnu, enuFactors, type RawMission, type ResolvedWaypoint } from './mission'
+import { missionLaunchAmsl } from './mavlink'
 import { loadGrid, sampleAt, gridStats, bboxOf, type Grid } from './terrain'
 import {
   buildTrajectory,
@@ -21,6 +22,7 @@ export type Selection =
   | { kind: 'leg'; index: number }
 
 export type Survey = {
+  checkSettings: { threshold: number; profile: VehicleProfile }
   mission: RawMission
   waypoints: ResolvedWaypoint[]
   origin: { lat: number; lon: number }
@@ -63,9 +65,9 @@ export async function surveyMission(
   }
   const grid = await loadGrid(bboxOf(pts))
 
-  // Launch elevation comes from the terrain, not the pilot (DESIGN.md #9).
+  // File imports use terrain (DESIGN.md #9); MAVLink uses the autopilot home datum.
   const homePt = mission.home ?? mission.waypoints[0]
-  const launchAmsl = sampleAt(grid, homePt.lat, homePt.lon)
+  const launchAmsl = missionLaunchAmsl(mission, sampleAt(grid, homePt.lat, homePt.lon))
   const origin = { lat: homePt.lat, lon: homePt.lon }
 
   const waypoints = toAmsl(mission.waypoints, launchAmsl, (lat, lon) => sampleAt(grid, lat, lon))
@@ -77,6 +79,7 @@ export async function surveyMission(
   // downstream reads an empty trajectory as "nothing to check".
   if (waypoints.length < 2) {
     return {
+      checkSettings: { threshold: thresholdM, profile: { ...profile } },
       mission, waypoints, origin, grid,
       traj: [], demands: [],
       launchAmsl, highestTerrain, lowestTerrain,
@@ -129,6 +132,7 @@ export async function surveyMission(
   issues.push(...mission.warnings)
 
   return {
+    checkSettings: { threshold: thresholdM, profile: { ...profile } },
     mission,
     waypoints,
     origin,

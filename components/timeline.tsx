@@ -169,7 +169,7 @@ function ClearanceProfile({
                 x={PAD.left - 5}
                 y={y(alt) + 3}
                 textAnchor="end"
-                className="fill-muted-foreground text-[9px] tabular-nums"
+                className="fill-muted-foreground text-[12px] tabular-nums"
               >
                 {alt.toFixed(0)}
               </text>
@@ -184,7 +184,7 @@ function ClearanceProfile({
               x={x(s)}
               y={h - 5}
               textAnchor={i === 0 ? 'start' : i === xTicks ? 'end' : 'middle'}
-              className="fill-muted-foreground text-[9px] tabular-nums"
+              className="fill-muted-foreground text-[12px] tabular-nums"
             >
               {(s / 1000).toFixed(2)} km
             </text>
@@ -246,14 +246,14 @@ function ClearanceProfile({
         <text
           x={PAD.left + 4}
           y={PAD.top + 10}
-          className="fill-muted-foreground text-[10px]"
+          className="fill-muted-foreground text-[12px]"
         >
           flight path
         </text>
         <text
           x={PAD.left + 4}
           y={Math.min(PAD.top + ih - 4, y(pts[0].terrain!) + 12)}
-          className="fill-muted-foreground text-[10px]"
+          className="fill-muted-foreground text-[12px]"
         >
           terrain
         </text>
@@ -261,7 +261,7 @@ function ClearanceProfile({
           x={PAD.left + iw - 4}
           y={y(pts[pts.length - 1].terrain! + threshold) - 4}
           textAnchor="end"
-          className="fill-muted-foreground text-[10px] tabular-nums"
+          className="fill-muted-foreground text-[12px] tabular-nums"
         >
           min {threshold} m
         </text>
@@ -288,7 +288,7 @@ function ClearanceProfile({
 
       {worst.clearance! < threshold && (
         <div
-          className="text-foreground pointer-events-none absolute flex items-center gap-1 whitespace-nowrap text-[10px] font-medium tabular-nums"
+          className="text-foreground pointer-events-none absolute flex items-center gap-1 whitespace-nowrap text-[12px] font-medium tabular-nums"
           style={{
             left: x(worst.s!),
             top: y(worst.alt) - 20,
@@ -299,18 +299,18 @@ function ClearanceProfile({
           }}
         >
           <TriangleAlert className="text-destructive size-3" />
-          {worst.clearance!.toFixed(0)} m · leg {worst.legIndex + 1}
+          {worst.clearance!.toFixed(0)} m on leg {worst.legIndex + 1}
         </div>
       )}
 
       {hoverPt && (
         <div
-          className="bg-popover text-popover-foreground border-border pointer-events-none absolute top-2 rounded-sm border px-2 py-1 text-[11px] whitespace-nowrap tabular-nums shadow-sm"
+          className="bg-popover text-popover-foreground border-border pointer-events-none absolute top-2 rounded-sm border px-2 py-1 text-[12px] whitespace-nowrap tabular-nums shadow-sm"
           style={{ left: Math.min(w - 150, Math.max(0, x(hoverPt.s!) + 8)) }}
         >
-          <div>{(hoverPt.s! / 1000).toFixed(2)} km · leg {hoverPt.legIndex + 1}</div>
+          <div>{(hoverPt.s! / 1000).toFixed(2)} km on leg {hoverPt.legIndex + 1}</div>
           <div className="text-muted-foreground">
-            {hoverPt.alt.toFixed(0)} m AMSL · ground {hoverPt.terrain!.toFixed(0)} m
+            {hoverPt.alt.toFixed(0)} m AMSL, ground {hoverPt.terrain!.toFixed(0)} m
           </div>
           <div className={cn(hoverPt.clearance! < threshold && 'text-destructive')}>
             {hoverPt.clearance! < threshold && <TriangleAlert className="mr-1 inline size-3" />}
@@ -372,7 +372,7 @@ export function Timeline({
 
   if (!survey) {
     return (
-      <div className="text-muted-foreground flex h-full items-center px-3 text-xs">
+      <div className="text-muted-foreground flex h-full items-center px-3 text-[12px]">
         Timeline
       </div>
     )
@@ -384,9 +384,9 @@ export function Timeline({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-border/60 flex h-8 shrink-0 items-center gap-2 border-b px-2 text-xs">
+      <div className="border-border/60 flex h-8 shrink-0 items-center gap-2 border-b px-2 text-[12px]">
         <Button
-          size="icon-sm"
+          size="icon"
           variant="secondary"
           aria-label={playing ? 'Pause' : 'Play'}
           onClick={() => {
@@ -400,14 +400,14 @@ export function Timeline({
           <SelectTrigger
             size="sm"
             aria-label="Playback speed"
-            className="h-6 w-[84px] gap-1 px-2 text-xs"
+            className="h-6 w-[84px] gap-1 px-2 text-[12px]"
           >
             <Gauge className="text-muted-foreground size-3.5 shrink-0" />
             <SelectValue>{(v: string) => `${v}×`}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             {[1, 2, 4, 8, 16].map((s) => (
-              <SelectItem key={s} value={String(s)} className="text-xs">
+              <SelectItem key={s} value={String(s)} className="text-[12px]">
                 {s}×
               </SelectItem>
             ))}
@@ -449,7 +449,7 @@ export function Timeline({
               >
                 {major && (
                   <span
-                    className="text-muted-foreground absolute bottom-2.5 text-[9px] tabular-nums"
+                    className="text-muted-foreground absolute bottom-2.5 text-[12px] tabular-nums"
                     style={{ transform: `translateX(${i === 0 ? '0' : i === 20 ? '-100%' : '-50%'})` }}
                   >
                     {(survey.durationS * ratio).toFixed(1)}s

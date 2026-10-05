@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx lib/trajectory.test.ts && tsx lib/mission.test.ts && tsx lib/png.test.mts && tsx lib/model-yaw.test.ts"
+    "test": "tsx lib/trajectory.test.ts && tsx lib/mission.test.ts && tsx lib/png.test.mts && tsx lib/model-yaw.test.ts && tsx lib/mavlink.test.ts",
+    "mavlink": "bash tools/mavlink/start.sh"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

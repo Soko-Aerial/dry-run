@@ -50,7 +50,7 @@ export default function ModelPreview({ url, yawDeg }: { url: string; yawDeg: num
         <OrbitControls autoRotate autoRotateSpeed={1.6} enablePan={false} makeDefault />
       </Canvas>
       <ZoomButtons
-        size="icon-sm"
+        size="icon"
         onZoom={(what) => cmd.current?.(what)}
         className="absolute right-1 bottom-1"
       />

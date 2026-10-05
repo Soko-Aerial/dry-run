@@ -5,10 +5,10 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import './globals.css'
 import 'mapbox-gl/dist/mapbox-gl.css'
 
-const graphik = localFont({
+const gerstner = localFont({
   src: [
-    { path: './fonts/Graphik-Regular.woff', weight: '400', style: 'normal' },
-    { path: './fonts/Graphik-Medium.woff', weight: '500', style: 'normal' },
+    { path: './fonts/Gerstner_ProgrammRegular.woff2', weight: '400', style: 'normal' },
+    { path: './fonts/Gerstner_ProgrammMedium.woff2', weight: '500', style: 'normal' },
   ],
   variable: '--font-sans',
   display: 'swap',
@@ -21,9 +21,9 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${graphik.variable} h-full`}>
+    <html lang="en" suppressHydrationWarning className={`${gerstner.variable} h-full`}>
       <body className="h-full overflow-hidden antialiased">
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem={true}>
           <TooltipProvider>{children}</TooltipProvider>
         </ThemeProvider>
       </body>

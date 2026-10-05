@@ -55,7 +55,7 @@ function Row({
         }
       }}
       className={cn(
-        'group flex h-6 cursor-default items-center gap-1 rounded-sm pr-2 text-xs outline-none',
+        'group flex h-6 cursor-default items-center gap-1 rounded-sm pr-2 text-base outline-none',
         'hover:bg-accent focus-visible:ring-ring/50 focus-visible:ring-2',
         active && 'bg-accent text-accent-foreground',
       )}
@@ -101,7 +101,7 @@ export function MissionTree({
 
   if (!survey) {
     return (
-      <div className="text-muted-foreground p-3 text-xs">No mission loaded</div>
+      <div className="text-muted-foreground p-3 text-base">No mission loaded</div>
     )
   }
 
@@ -111,8 +111,6 @@ export function MissionTree({
         <Row
           icon={FolderOpen}
           label={fileName ?? 'mission'}
-          detail={survey.verdict ?? undefined}
-          warn={survey.verdict === 'NO-GO'}
           active={same(selection, { kind: 'mission' })}
           onClick={() => onSelect({ kind: 'mission' })}
         />

@@ -22,7 +22,7 @@ export type RawWaypoint = {
 export type RawMission = {
   home: { lat: number; lon: number; alt: number } | null
   waypoints: RawWaypoint[]
-  source: 'waypoints' | 'plan'
+  source: 'waypoints' | 'plan' | 'mavlink'
   warnings: string[]
 }
 

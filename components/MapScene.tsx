@@ -7,6 +7,7 @@ import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js'
 import { Box3, Vector3 } from 'three'
 import { enuFactors } from '@/lib/mission'
 import { DEFAULT_AIRCRAFT_MAPBOX_YAW, mapboxModelYaw } from '@/lib/model-yaw'
+import type { VehiclePosition } from '@/lib/mavlink'
 import type { Selection, Survey } from '@/lib/survey'
 
 const EMPTY_PATH = { type: 'FeatureCollection' as const, features: [] }
@@ -42,10 +43,11 @@ function placeAircraft(map: mapboxgl.Map, pose: AircraftPose, model: AircraftMod
 }
 
 export default function MapScene({
-  survey, threshold, playing, speed, chase, missionId, headRef, onTick,
+  survey, threshold, playing, speed, chase, missionId, headRef, onTick, livePosition,
   selection, onSelect, onDrop, onUnavailable, onChaseExit, modelUrl, modelYawDeg,
 }: {
   survey: Survey
+  livePosition: VehiclePosition | null
   threshold: number
   playing: boolean
   speed: number
@@ -61,6 +63,7 @@ export default function MapScene({
   modelUrl: string | null
   modelYawDeg: number
 }) {
+  const liveMarkerRef = useRef<mapboxgl.Marker | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const aircraftModelRef = useRef({ uri: '/aircraft.glb', scale: 1.8, yaw: DEFAULT_AIRCRAFT_YAW })
   const aircraftPositionRef = useRef<AircraftPose | null>(null)
@@ -220,6 +223,31 @@ export default function MapScene({
     // A new imported mission gets a fresh map. Edits update its sources below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [missionId])
+
+  useEffect(() => {
+    if (!map) return
+    const element = document.createElement('div')
+    element.textContent = '▲'
+    element.style.cssText = 'color:#14b8a6;font-size:24px;text-shadow:0 1px 3px #000;'
+    element.setAttribute('aria-label', 'Live vehicle position')
+    element.setAttribute('role', 'img')
+    const marker = new mapboxgl.Marker({ element, rotationAlignment: 'map' })
+    liveMarkerRef.current = marker
+    return () => {
+      marker.remove()
+      liveMarkerRef.current = null
+    }
+  }, [map])
+
+  useEffect(() => {
+    const marker = liveMarkerRef.current
+    if (!map || !marker) return
+    if (!livePosition) { marker.remove(); return }
+    marker.setLngLat([livePosition.lon, livePosition.lat])
+      .setRotation(livePosition.heading ?? 0)
+    if (!marker.getElement().isConnected) marker.addTo(map)
+    marker.getElement().title = `Live vehicle at ${livePosition.altAmsl.toFixed(1)} m AMSL`
+  }, [map, livePosition])
 
   useEffect(() => {
     if (!map || framedRef.current === missionId) return

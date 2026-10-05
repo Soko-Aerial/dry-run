@@ -2,17 +2,18 @@
 
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
-import { Upload, PanelLeft, PanelRight, PanelBottom, MapPin, LocateFixed } from 'lucide-react'
+import { Upload, PanelLeft, PanelRight, PanelBottom, MapPin } from 'lucide-react'
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
 } from '@/components/ui/resizable'
 import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { ButtonGroup, ButtonGroupSeparator } from '@/components/ui/button-group'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { MissionTree } from '@/components/mission-tree'
-import { Inspector } from '@/components/inspector'
+import { CheckControls, Inspector } from '@/components/inspector'
 import { Timeline } from '@/components/timeline'
 import { PROFILES, type VehicleProfile } from '@/lib/trajectory'
 import { parseMission, type RawMission, type RawWaypoint } from '@/lib/mission'
@@ -20,6 +21,9 @@ import { sampleAt } from '@/lib/terrain'
 import { surveyMission, type Selection, type Survey } from '@/lib/survey'
 import { Kbd } from '@/components/ui/kbd'
 import { cn } from '@/lib/utils'
+import { useMavlink } from '@/components/use-mavlink'
+import { MavlinkActions, MavlinkConnect, MavlinkDownload, MavlinkPanel, MavlinkStatus } from '@/components/mavlink-panel'
+import { missionFromMavlink, type DownloadedMission } from '@/lib/mavlink'
 
 const MapScene = dynamic(() => import('@/components/MapScene'), { ssr: false })
 
@@ -31,7 +35,7 @@ function PanelTitle({
   action?: React.ReactNode
 }) {
   return (
-    <div className="border-border/60 flex h-8 shrink-0 items-center gap-2 border-b px-2 text-[11px] font-medium">
+    <div className="border-border/60 flex h-8 shrink-0 items-center gap-2 border-b px-2 text-base font-medium">
       {children}
       {action && <span className="ml-auto">{action}</span>}
     </div>
@@ -39,6 +43,9 @@ function PanelTitle({
 }
 
 export default function Page() {
+  const mavlink = useMavlink()
+  const [downloading, setDownloading] = useState(false)
+  const [vehicleNotice, setVehicleNotice] = useState<string | null>(null)
   const [kind, setKind] = useState<'fixedwing' | 'multirotor'>('fixedwing')
   const [profile, setProfile] = useState<VehicleProfile>(PROFILES.fixedwing)
   const [threshold, setThreshold] = useState(30)
@@ -96,6 +103,51 @@ export default function Page() {
     },
     [profile, threshold],
   )
+
+  const loadVehicleMission = useCallback(async (mission: RawMission, name: string) => {
+    const type = mavlink.telemetry?.vehicle?.type
+    const vehicleKind = type === 1 ? 'fixedwing' : type === 2 ? 'multirotor' : kind
+    setKind(vehicleKind)
+    setProfile(PROFILES[vehicleKind])
+    setPlaying(false)
+    setChase(false)
+    setDropping(false)
+    setFileName(name)
+    setSurvey(null)
+    setMissionId((n) => n + 1)
+    await run(mission, PROFILES[vehicleKind], threshold, { kind: 'mission' })
+  }, [mavlink.telemetry?.vehicle?.type, kind, run, threshold])
+
+  const locateVehicle = useCallback(async () => {
+    const telemetry = mavlink.telemetry
+    if (!telemetry?.connected || !telemetry.position) return
+    const { lat, lon, altAmsl } = telemetry.position
+    setVehicleNotice(null)
+    await loadVehicleMission({
+      home: { lat, lon, alt: altAmsl }, waypoints: [], source: 'mavlink', warnings: [],
+    }, 'Vehicle location')
+  }, [mavlink.telemetry, loadVehicleMission])
+
+  const downloadVehicleMission = useCallback(async () => {
+    setDownloading(true)
+    setError(null)
+    setVehicleNotice(null)
+    try {
+      const response = await fetch('/api/mavlink/mission', { method: 'POST', signal: AbortSignal.timeout(27000) })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error ?? 'Mission download failed.')
+      const mission = missionFromMavlink(data as DownloadedMission)
+      if (!mission.waypoints.length) {
+        setVehicleNotice('The vehicle has no navigable mission waypoints. Locate it to view the launch area.')
+        return
+      }
+      await loadVehicleMission(mission, `Vehicle ${mavlink.telemetry?.vehicle?.systemId ?? ''} mission`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setDownloading(false)
+    }
+  }, [loadVehicleMission, mavlink.telemetry])
 
   // Edits work on the parsed mission, never on the file text: the text is the
   // artifact that was imported, and re-serialising it only to parse it again is
@@ -221,6 +273,17 @@ export default function Page() {
     return () => window.removeEventListener('keydown', onKey)
   }, [selection, removeWaypoint])
 
+  const mavlinkPanelProps = {
+    enabled: mavlink.enabled,
+    telemetry: mavlink.telemetry,
+    error: mavlink.error,
+    notice: vehicleNotice,
+    busy: busy || downloading,
+    onToggle: mavlink.toggle,
+    onLocate: locateVehicle,
+    onDownload: downloadVehicleMission,
+  }
+
   return (
     <div className="bg-background flex h-full flex-col">
       {/* top bar */}
@@ -266,7 +329,7 @@ export default function Page() {
             }
           }}
         />
-        {error && <span className="text-destructive truncate text-xs">{error}</span>}
+        {error && <span className="text-destructive truncate text-base">{error}</span>}
 
         <div className="ml-auto flex items-center gap-1.5">
           <ButtonGroup>
@@ -281,7 +344,7 @@ export default function Page() {
                 {i > 0 && <ButtonGroupSeparator />}
                 <Button
                   variant="secondary"
-                  size="icon-sm"
+                  size="icon"
                   aria-label={label}
                   aria-pressed={on}
                   onClick={() => set(!on)}
@@ -298,28 +361,30 @@ export default function Page() {
       <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
         {showLeft && (
           <>
-            <ResizablePanel defaultSize="16" minSize="10" maxSize="30">
+            <ResizablePanel defaultSize="16%" minSize="10%" maxSize="30%">
               <div className="flex h-full flex-col">
                 <PanelTitle
                   action={
                     <ButtonGroup>
-                      <Button
-                        size="icon-sm"
-                        variant="secondary"
-                        aria-label="Open mission"
-                        onClick={() => fileRef.current?.click()}
-                      >
-                        <Upload />
-                      </Button>
+                      <Tooltip>
+                        <TooltipTrigger render={
+                          <Button size="icon" variant="secondary" aria-label="Open mission" onClick={() => fileRef.current?.click()} />
+                        }>
+                          <Upload />
+                        </TooltipTrigger>
+                        <TooltipContent>Open mission</TooltipContent>
+                      </Tooltip>
                       <ButtonGroupSeparator />
-                      <Button
-                        size="icon-sm"
-                        variant="secondary"
-                        aria-label="Start a mission at my location"
-                        onClick={startHere}
-                      >
-                        <LocateFixed />
-                      </Button>
+                      <Tooltip>
+                        <TooltipTrigger render={
+                          <Button size="icon" variant="secondary" aria-label="Start a mission at my location" onClick={startHere} />
+                        }>
+                          <MapPin />
+                        </TooltipTrigger>
+                        <TooltipContent>Start a mission at my location</TooltipContent>
+                      </Tooltip>
+                      <ButtonGroupSeparator />
+                      <MavlinkDownload {...mavlinkPanelProps} />
                     </ButtonGroup>
                   }
                 >
@@ -334,19 +399,31 @@ export default function Page() {
                     threshold={threshold}
                   />
                 </div>
+                <div className="max-h-[55%] shrink-0 overflow-y-auto">
+                <CheckControls
+                  setProfile={setProfile}
+                  survey={survey}
+                  profile={profile}
+                  threshold={threshold}
+                  setThreshold={setThreshold}
+                  busy={busy}
+                  onRerun={() => missionRef.current && run(missionRef.current)}
+                />
+                </div>
               </div>
             </ResizablePanel>
             <ResizableHandle />
           </>
         )}
 
-        <ResizablePanel defaultSize="60" minSize="30">
+        <ResizablePanel defaultSize="60%" minSize="30%">
           <ResizablePanelGroup orientation="vertical">
-            <ResizablePanel defaultSize={showBottom ? "66" : "100"} minSize="25">
+            <ResizablePanel defaultSize={showBottom ? "66%" : "100%"} minSize="25%">
               <div className="relative h-full">
                 {survey ? (
                   <>
                     <MapScene
+                      livePosition={mavlink.telemetry?.connected ? mavlink.telemetry.position : null}
                       missionId={missionId}
                       modelUrl={model?.url ?? null}
                       modelYawDeg={model?.yaw ?? 0}
@@ -369,7 +446,7 @@ export default function Page() {
                       variant={dropping ? 'default' : 'secondary'}
                       disabled={chase}
                       aria-pressed={dropping}
-                      className="h-6 gap-1.5 px-2 text-xs"
+                      className="h-6 gap-1.5 px-2 text-base"
                       onClick={() => setDropping((d) => !d)}
                     >
                       <MapPin className="size-3.5" />
@@ -381,7 +458,7 @@ export default function Page() {
                           key={m}
                           size="sm"
                           variant={chase === (m === 'Chase') ? 'secondary' : 'ghost'}
-                          className="h-6 px-2 text-xs"
+                          className="h-6 px-2 text-base"
                           onClick={() => setChase(m === 'Chase')}
                         >
                           {m}
@@ -390,7 +467,7 @@ export default function Page() {
                     </div>
                     </div>
                     {dropping && (
-                      <span className="bg-card/80 border-border/60 text-muted-foreground absolute top-2 left-1/2 -translate-x-1/2 rounded-md border px-2 py-1 text-[11px] backdrop-blur">
+                      <span className="bg-card/80 border-border/60 text-muted-foreground absolute top-2 left-1/2 -translate-x-1/2 rounded-md border px-2 py-1 text-base backdrop-blur">
                         Click the terrain to drop a waypoint
                         {selection?.kind === 'waypoint' ? ` after ${selection.index + 1}` : ''}
                       </span>
@@ -399,13 +476,13 @@ export default function Page() {
                 ) : (
                   <div className="grid h-full place-items-center">
                     {busy ? (
-                      <span className="text-muted-foreground text-xs">Sampling terrain…</span>
+                      <span className="text-muted-foreground text-base">Sampling terrain…</span>
                     ) : (
                       <div className="flex items-center gap-1.5">
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-6 gap-1.5 px-2.5 text-xs"
+                          className="h-6 gap-1.5 px-2.5 text-base"
                           onClick={() => fileRef.current?.click()}
                         >
                           <Upload />
@@ -414,10 +491,10 @@ export default function Page() {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-6 gap-1.5 px-2.5 text-xs"
+                          className="h-6 gap-1.5 px-2.5 text-base"
                           onClick={startHere}
                         >
-                          <LocateFixed />
+                          <MapPin />
                           Start here
                         </Button>
                       </div>
@@ -429,7 +506,7 @@ export default function Page() {
             {showBottom && (
               <>
                 <ResizableHandle />
-                <ResizablePanel defaultSize="34" minSize="12">
+                <ResizablePanel defaultSize="34%" minSize="12%">
                   <Timeline
                     survey={survey && survey.traj.length > 1 ? survey : null}
                     threshold={threshold}
@@ -452,12 +529,12 @@ export default function Page() {
         {showRight && (
           <>
             <ResizableHandle />
-            <ResizablePanel defaultSize="24" minSize="14" maxSize="40">
+            <ResizablePanel defaultSize="24%" minSize="14%" maxSize="40%">
               <div className="flex h-full flex-col">
                 <PanelTitle
                   action={
                     selection && (
-                      <span className="text-muted-foreground flex items-center gap-1 text-[10px] font-normal">
+                      <span className="text-muted-foreground flex items-center gap-1 text-base font-normal">
                         <Kbd>Esc</Kbd> to clear
                       </span>
                     )
@@ -467,6 +544,12 @@ export default function Page() {
                 </PanelTitle>
                 <div className="min-h-0 flex-1">
                   <Inspector
+                    connectionActions={<MavlinkConnect {...mavlinkPanelProps} />}
+                    vehicleActions={<MavlinkActions {...mavlinkPanelProps} />}
+                    vehicleConnection={<>
+                      <MavlinkStatus {...mavlinkPanelProps} />
+                      <MavlinkPanel {...mavlinkPanelProps} />
+                    </>}
                     modelName={model?.name ?? null}
                     modelUrl={model?.url ?? null}
                     modelYaw={model?.yaw ?? 0}
@@ -488,9 +571,6 @@ export default function Page() {
                     profile={profile}
                     setProfile={setProfile}
                     threshold={threshold}
-                    setThreshold={setThreshold}
-                    busy={busy}
-                    onRerun={() => missionRef.current && run(missionRef.current)}
                   />
                 </div>
               </div>
