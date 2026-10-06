@@ -73,9 +73,10 @@ export default function App() {
   // Playback clamps at the last sample but nothing cleared the flag, so the
   // button showed Pause on a stopped flight and one click both rewound and
   // paused it.
-  useEffect(() => {
-    if (playing && survey && head >= survey.traj.length - 1) setPlaying(false)
-  }, [playing, head, survey])
+  const onTick = useCallback((i: number) => {
+    setHead(i)
+    if (survey && i >= survey.traj.length - 1) setPlaying(false)
+  }, [survey])
 
   const run = useCallback(
     // `select` lands with the new survey, never before it: the inspector
@@ -448,7 +449,7 @@ export default function App() {
                       chase={chase}
                       onChaseExit={exitChase}
                       headRef={headRef}
-                      onTick={setHead}
+                      onTick={onTick}
                       selection={selection}
                       onSelect={setSelection}
                       onDrop={dropping && !chase ? dropAt : null}

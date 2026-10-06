@@ -1,4 +1,4 @@
-import { Suspense, useRef } from 'react'
+import { Suspense, useEffect, useRef } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
@@ -8,17 +8,19 @@ import { ZoomButtons, type ZoomCmd } from '@/components/zoom-buttons'
 const HOME = new THREE.Vector3(0, 12, 38)
 
 /** Same glide-to-a-goal dolly as the main view, at model scale. */
-function Dolly({ cmd }: { cmd: React.RefObject<((what: ZoomCmd) => void) | null> }) {
+function Dolly({ cmdRef }: { cmdRef: React.RefObject<((what: ZoomCmd) => void) | null> }) {
   const { camera } = useThree()
   const goal = useRef<THREE.Vector3 | null>(null)
 
-  cmd.current = (what) => {
-    if (what === 'stop') return void (goal.current = null)
-    if (what === 'fit') return void (goal.current = HOME.clone())
-    const from = goal.current ?? camera.position
-    const d = Math.min(160, Math.max(8, from.length() * (what === 'in' ? 0.75 : 1 / 0.75)))
-    goal.current = from.clone().normalize().multiplyScalar(d)
-  }
+  useEffect(() => {
+    cmdRef.current = (what) => {
+      if (what === 'stop') return void (goal.current = null)
+      if (what === 'fit') return void (goal.current = HOME.clone())
+      const from = goal.current ?? camera.position
+      const d = Math.min(160, Math.max(8, from.length() * (what === 'in' ? 0.75 : 1 / 0.75)))
+      goal.current = from.clone().normalize().multiplyScalar(d)
+    }
+  }, [cmdRef, camera])
 
   useFrame(() => {
     if (!goal.current) return
@@ -44,7 +46,7 @@ export default function ModelPreview({ url, yawDeg }: { url: string; yawDeg: num
             <Model url={url} />
           </Suspense>
         </group>
-        <Dolly cmd={cmd} />
+        <Dolly cmdRef={cmd} />
         <OrbitControls autoRotate autoRotateSpeed={1.6} enablePan={false} makeDefault />
       </Canvas>
       <ZoomButtons
