@@ -169,7 +169,7 @@
    and keep its right end clear of the OS window buttons drawn over it. */
 .title-bar {
     -webkit-app-region: drag;
-    height: env(titlebar-area-height, 36px);
+    height: 36px;
     padding-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 0.5rem);
 }
 

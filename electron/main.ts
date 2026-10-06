@@ -115,10 +115,10 @@ app.whenReady().then(async () => {
     }
   })
 
-  // VS Code-style title bar: the app header is the title bar, the OS draws only the window
-  // buttons over its right end (h-9 = 36 px). Colours follow the app theme, not the OS.
+  // The app header is the title bar; the OS draws only the window buttons over its right end,
+  // 1 px short of the header's 36 px so its bottom border runs under them.
   const titleBar = (dark: boolean) => ({
-    height: 36, color: dark ? '#0a0a0a' : '#ffffff', symbolColor: dark ? '#fafafa' : '#0a0a0a',
+    height: 35, color: dark ? '#0a0a0a' : '#ffffff', symbolColor: dark ? '#fafafa' : '#0a0a0a',
   })
   const win = new BrowserWindow({
     width: 1440,
