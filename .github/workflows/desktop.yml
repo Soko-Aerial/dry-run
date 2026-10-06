@@ -1,4 +1,5 @@
-# Builds the installers: run it from the Actions tab, or push a v* tag.
+# Builds the installers. Push a v* tag matching package.json's version to publish a
+# GitHub release with them attached; run it from the Actions tab for a test build.
 # Windows needs a Windows runner: NSIS can't be built on Linux without Wine.
 # Needs a MAPBOX_TOKEN repository secret (the public pk. token baked into the app).
 name: Desktop builds
@@ -16,6 +17,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
+      - if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          version="v$(node -p "require('./package.json').version")"
+          [ "$version" = "$GITHUB_REF_NAME" ] || { echo "Tag $GITHUB_REF_NAME doesn't match package.json $version"; exit 1; }
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v5
         with:
@@ -33,3 +39,18 @@ jobs:
             release/*.AppImage
             release/*.exe
           if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          path: release
+          merge-multiple: true
+      - run: gh release create "$GITHUB_REF_NAME" release/* --repo "$GITHUB_REPOSITORY" --title "dry run $GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}

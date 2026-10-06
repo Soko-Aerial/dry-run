@@ -52,9 +52,15 @@ Want the flight math? Read [`DESIGN.md`](DESIGN.md).
 pnpm dist
 ```
 
-Builds for the OS you run it on, into `release/`: `dry-run-<version>.AppImage` on Linux, `dry-run Setup <version>.exe` on Windows. The token in `MAPBOX_TOKEN` (env or `.env.local`) is baked in. Both register `.plan` and `.waypoints` files, so double-clicking one opens it in dry run.
+Builds for the OS you run it on, into `release/`: `dry-run-<version>.AppImage` on Linux, `dry-run-setup-<version>.exe` on Windows. The token in `MAPBOX_TOKEN` (env or `.env.local`) is baked in. Both register `.plan` and `.waypoints` files, so double-clicking one opens it in dry run.
 
-The Windows installer can't be built on Linux without Wine. Run the **Desktop builds** workflow from the GitHub Actions tab (or push a `v*` tag) to get both, after adding a `MAPBOX_TOKEN` repository secret.
+To publish a release, bump `version` in `package.json`, commit, then tag and push:
+
+```bash
+git tag v0.1.0 && git push origin main v0.1.0
+```
+
+The **Desktop builds** workflow builds both installers and attaches them to a GitHub release for that tag. It needs a `MAPBOX_TOKEN` repository secret. The Windows installer can't be built on Linux without Wine, so locally it builds only on Windows.
 
 On Linux, `chmod +x` the AppImage and run it. It needs `fusermount3` (in the `fuse3` package, standard on Ubuntu desktops).
 

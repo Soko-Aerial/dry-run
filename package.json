@@ -80,6 +80,12 @@
     },
     "toolsets": {
       "appimage": "1.0.3"
+    },
+    "nsis": {
+      "artifactName": "dry-run-setup-${version}.exe"
+    },
+    "appImage": {
+      "artifactName": "dry-run-${version}.AppImage"
     }
   },
   "desktopName": "dry-run.desktop"
