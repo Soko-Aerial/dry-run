@@ -131,7 +131,16 @@ app.whenReady().then(async () => {
     webPreferences: { preload: join(__dirname, 'preload.cjs') },
   })
   win.once('ready-to-show', () => win.show())
-  ipcMain.on('title-bar-theme', (_e, dark: boolean) => win.setTitleBarOverlay(titleBar(dark)))
+  // The app's theme toggle drives the native theme too: Windows recolours the window buttons
+  // from it, and setTitleBarOverlay alone doesn't repaint them there. 'system' keeps following the OS.
+  ipcMain.on('theme', (_e, theme: 'system' | 'light' | 'dark') => {
+    if (!['system', 'light', 'dark'].includes(theme)) return
+    nativeTheme.themeSource = theme
+    const dark = nativeTheme.shouldUseDarkColors
+    win.setBackgroundColor(titleBar(dark).color)
+    win.setTitleBarOverlay(titleBar(dark))
+  })
+  nativeTheme.on('updated', () => win.setTitleBarOverlay(titleBar(nativeTheme.shouldUseDarkColors)))
   // Handed over once, so a renderer reload (or React StrictMode's double effect) doesn't reopen it.
   let launchFile: ReturnType<typeof missionFile> | null = missionFile(process.argv.slice(1))
   ipcMain.handle('open-file:launch', () => {

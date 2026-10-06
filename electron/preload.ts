@@ -5,7 +5,7 @@ type OpenedFile = { name: string; text: string }
 
 contextBridge.exposeInMainWorld('dryRun', {
   mapboxToken: ipcRenderer.sendSync('mapbox-token') as string,
-  setTitleBarTheme: (dark: boolean) => ipcRenderer.send('title-bar-theme', dark),
+  setTheme: (theme: 'system' | 'light' | 'dark') => ipcRenderer.send('theme', theme),
   /** The file the app was launched with, then any opened while running. Returns an unsubscribe. */
   onOpenFile(callback: (file: OpenedFile) => void) {
     const listener = (_: IpcRendererEvent, file: OpenedFile) => callback(file)

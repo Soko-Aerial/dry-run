@@ -4,10 +4,10 @@ import { Moon, Sun } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 export function ThemeToggle() {
-  const { resolvedTheme, setTheme } = useTheme()
+  const { theme, resolvedTheme, setTheme } = useTheme()
   useEffect(() => {
-    if (resolvedTheme) window.dryRun.setTitleBarTheme(resolvedTheme === 'dark')
-  }, [resolvedTheme])
+    if (theme === 'system' || theme === 'light' || theme === 'dark') window.dryRun.setTheme(theme)
+  }, [theme])
   return (
     <Button
       variant="ghost"

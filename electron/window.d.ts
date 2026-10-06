@@ -2,8 +2,8 @@
 interface Window {
   dryRun: {
     mapboxToken: string
-    /** Recolours the OS window buttons drawn over the header. */
-    setTitleBarTheme(dark: boolean): void
+    /** Applies the app theme to native UI, including the window buttons over the header. */
+    setTheme(theme: 'system' | 'light' | 'dark'): void
     /** Calls back with the launch file, then files opened while running. Returns an unsubscribe. */
     onOpenFile(callback: (file: { name: string; text: string }) => void): () => void
     mavlink: {
