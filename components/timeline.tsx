@@ -399,7 +399,7 @@ export function Timeline({
           <SelectTrigger
             size="sm"
             aria-label="Playback speed"
-            className="h-6 w-[84px] gap-1 px-2 text-[12px]"
+            className="h-6 w-21 gap-1 px-2 text-[12px]"
           >
             <Gauge className="text-muted-foreground size-3.5 shrink-0" />
             <SelectValue>{(v: string) => `${v}×`}</SelectValue>
